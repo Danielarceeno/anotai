@@ -73,26 +73,27 @@ object ReminderNotifier {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        fun label(note: Note) = note.title.ifBlank { note.body.take(60) }
+        fun bodyPlainText(note: Note) = com.example.notepad.ui.NoteFormatting.plainText(note.body, note.isFormatted)
+        fun label(note: Note) = note.title.ifBlank { bodyPlainText(note).take(60) }
 
         val first = notes.first()
         val titleText = "[${notes.size}] ${label(first)}"
         val bigText = if (notes.size == 1) {
-            first.body.ifBlank { first.title }
+            bodyPlainText(first).ifBlank { first.title }
         } else {
             notes.joinToString("\n") { label(it) }
         }
 
         // A redacted stand-in shown on a secure lockscreen instead of the real title/body, so a
         // note's actual content never appears there regardless of the device's own "show full
-        // notification content on lockscreen" setting.
+        // notification content on lockscreen" setting. Just the app name, no subtext -- the
+        // lockscreen isn't the place to announce there's something due.
         val iconColor = ContextCompat.getColor(context, R.color.notification_icon_color)
 
         val publicVersion = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(iconColor)
             .setContentTitle(context.getString(R.string.notification_hidden_title))
-            .setContentText(context.getString(R.string.notification_hidden_text))
             .setOngoing(true)
             .setContentIntent(contentIntent)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)

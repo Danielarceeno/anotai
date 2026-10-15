@@ -105,6 +105,9 @@ class NoteEditorActivity : AppCompatActivity() {
         }
         binding.colorToggleContainer.setOnClickListener { toggleColorRow() }
         binding.overflowButton.setOnClickListener { showOverflowMenu() }
+        binding.boldButton.setOnClickListener { NoteFormatting.toggleBold(binding.bodyInput) }
+        binding.italicButton.setOnClickListener { NoteFormatting.toggleItalic(binding.bodyInput) }
+        binding.underlineButton.setOnClickListener { NoteFormatting.toggleUnderline(binding.bodyInput) }
 
         onBackPressedDispatcher.addCallback(this) {
             saveIfNeeded()
@@ -136,7 +139,7 @@ class NoteEditorActivity : AppCompatActivity() {
                 if (noteType == Note.TYPE_CHECKLIST) {
                     checklistAdapter.setItems(ChecklistItem.parse(note?.body.orEmpty()))
                 } else {
-                    binding.bodyInput.setText(note?.body.orEmpty())
+                    NoteFormatting.load(binding.bodyInput, note?.body.orEmpty(), note?.isFormatted ?: false)
                 }
                 binding.overflowButton.visibility = View.VISIBLE
                 selectColor(note?.colorIndex ?: lastUsedColorIndex())
@@ -400,12 +403,17 @@ class NoteEditorActivity : AppCompatActivity() {
     private fun saveIfNeeded() {
         if (isDeleting) return
         val title = binding.titleInput.text.toString()
-        val body = if (noteType == Note.TYPE_CHECKLIST) {
-            ChecklistItem.serialize(checklistItems)
+        val isFormatted: Boolean
+        val body: String
+        if (noteType == Note.TYPE_CHECKLIST) {
+            body = ChecklistItem.serialize(checklistItems)
+            isFormatted = false
         } else {
-            binding.bodyInput.text.toString()
+            val (text, formatted) = NoteFormatting.save(binding.bodyInput)
+            body = text
+            isFormatted = formatted
         }
-        val isEmpty = title.isBlank() && (if (noteType == Note.TYPE_CHECKLIST) checklistItems.isEmpty() else body.isBlank())
+        val isEmpty = title.isBlank() && (if (noteType == Note.TYPE_CHECKLIST) checklistItems.isEmpty() else binding.bodyInput.text.isBlank())
         val existing = note
 
         if (isEmpty) {
@@ -427,6 +435,7 @@ class NoteEditorActivity : AppCompatActivity() {
                 saved = existing.copy(
                     title = title,
                     body = body,
+                    isFormatted = isFormatted,
                     colorIndex = selectedColorIndex,
                     type = noteType,
                     dueDate = selectedDueDate,
@@ -442,6 +451,7 @@ class NoteEditorActivity : AppCompatActivity() {
                 val draft = Note(
                     title = title,
                     body = body,
+                    isFormatted = isFormatted,
                     colorIndex = selectedColorIndex,
                     type = noteType,
                     dueDate = selectedDueDate,

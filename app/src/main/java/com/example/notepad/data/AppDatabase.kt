@@ -11,7 +11,7 @@ import kotlinx.coroutines.runBlocking
 import net.sqlcipher.database.SQLiteDatabase
 import net.sqlcipher.database.SupportFactory
 
-@Database(entities = [Note::class, Folder::class], version = 9, exportSchema = false)
+@Database(entities = [Note::class, Folder::class], version = 10, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun folderDao(): FolderDao
@@ -49,6 +49,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Rich text (bold/italic/underline) support: a plain additive column with a SQL
+         *  default, no backfill loop needed since every pre-existing row's body is plain text. */
+        private val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE notes ADD COLUMN isFormatted INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: buildDatabase(context.applicationContext).also { instance = it }
@@ -65,7 +73,7 @@ abstract class AppDatabase : RoomDatabase() {
 
             return Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
                 .openHelperFactory(SupportFactory(SQLiteDatabase.getBytes(passphrase)))
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .fallbackToDestructiveMigration()
                 .build()
         }
@@ -93,7 +101,7 @@ abstract class AppDatabase : RoomDatabase() {
                 dbFile.copyTo(context.getDatabasePath(legacyName), overwrite = true)
 
                 val legacyDb = Room.databaseBuilder(context, AppDatabase::class.java, legacyName)
-                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .fallbackToDestructiveMigration()
                     .build()
                 val (folders, notes) = runBlocking {

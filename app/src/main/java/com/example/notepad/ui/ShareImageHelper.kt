@@ -81,7 +81,7 @@ object ShareImageHelper {
     private fun bodyText(note: Note): String = if (note.type == Note.TYPE_CHECKLIST) {
         ChecklistItem.parse(note.body).joinToString("\n") { (if (it.checked) "☑ " else "☐ ") + it.text }
     } else {
-        note.body
+        NoteFormatting.plainText(note.body, note.isFormatted)
     }
 
     /** A fresh file per share (timestamped name) rather than overwriting one fixed file, so a

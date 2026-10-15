@@ -44,6 +44,12 @@
     <string name="action_move_to_folder">Mover para pasta</string>
     <string name="action_select_all">Selecionar todas</string>
     <string name="drag_to_reorder">Arraste para reordenar</string>
+    <string name="format_bold">Negrito</string>
+    <string name="format_italic">Itálico</string>
+    <string name="format_underline">Sublinhado</string>
+    <string name="format_bold_label">N</string>
+    <string name="format_italic_label">I</string>
+    <string name="format_underline_label">S</string>
 
     <string name="add_note_dialog_title">Adicionar nota</string>
     <string name="note_type_text">Texto</string>
@@ -73,7 +79,6 @@
     <string name="notification_channel_name">Lembretes diários</string>
     <string name="notification_subtext">Notas de hoje</string>
     <string name="notification_hidden_title">Anotaí</string>
-    <string name="notification_hidden_text">Você tem lembretes para hoje</string>
     <string name="notifications_disabled_message">As notificações estão desativadas, então os lembretes diários não vão aparecer</string>
     <string name="notifications_disabled_action">Ativar</string>
     <string name="battery_optimization_message">A otimização de bateria pode atrasar ou bloquear os lembretes diários</string>

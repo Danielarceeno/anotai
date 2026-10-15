@@ -79,7 +79,11 @@ object DayNotesDialog {
                 // text -- fall back to a plain label instead, since each item now gets its
                 // own checkbox row below.
                 text = note.title.ifBlank {
-                    if (note.type == Note.TYPE_CHECKLIST) context.getString(R.string.note_type_checklist) else note.body.take(40)
+                    if (note.type == Note.TYPE_CHECKLIST) {
+                        context.getString(R.string.note_type_checklist)
+                    } else {
+                        NoteFormatting.plainText(note.body, note.isFormatted).take(40)
+                    }
                 }
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     marginStart = rowPadding

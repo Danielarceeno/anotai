@@ -45,7 +45,7 @@ class TrashAdapter(
                 val items = ChecklistItem.parse(note.body)
                 "${items.count { it.checked }}/${items.size} done"
             } else {
-                note.body
+                NoteFormatting.plainText(note.body, note.isFormatted)
             }
             binding.restoreButton.setOnClickListener { onRestore(note) }
             binding.deleteForeverButton.setOnClickListener { onDeleteForever(note) }

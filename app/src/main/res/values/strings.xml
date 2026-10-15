@@ -44,6 +44,12 @@
     <string name="action_move_to_folder">Move to folder</string>
     <string name="action_select_all">Select all</string>
     <string name="drag_to_reorder">Drag to reorder</string>
+    <string name="format_bold">Bold</string>
+    <string name="format_italic">Italic</string>
+    <string name="format_underline">Underline</string>
+    <string name="format_bold_label">B</string>
+    <string name="format_italic_label">I</string>
+    <string name="format_underline_label">U</string>
 
     <string name="add_note_dialog_title">Add note</string>
     <string name="note_type_text">Text</string>
@@ -73,7 +79,6 @@
     <string name="notification_channel_name">Daily reminders</string>
     <string name="notification_subtext">Today\'s notes</string>
     <string name="notification_hidden_title">Anotaí</string>
-    <string name="notification_hidden_text">You have reminders for today</string>
     <string name="notifications_disabled_message">Notifications are off, so daily reminders won\'t show</string>
     <string name="notifications_disabled_action">Enable</string>
     <string name="battery_optimization_message">Battery optimization may delay or block daily reminders</string>

@@ -16,6 +16,7 @@ object BackupHelper {
                 JSONObject().apply {
                     put("title", note.title)
                     put("body", note.body)
+                    put("isFormatted", note.isFormatted)
                     put("folderId", note.folderId)
                     put("colorIndex", note.colorIndex)
                     put("type", note.type)
@@ -43,6 +44,7 @@ object BackupHelper {
             Note(
                 title = obj.getString("title"),
                 body = obj.getString("body"),
+                isFormatted = obj.optBoolean("isFormatted", false),
                 folderId = obj.optLong("folderId", 0L),
                 colorIndex = obj.optInt("colorIndex", 0),
                 type = obj.optInt("type", Note.TYPE_TEXT),

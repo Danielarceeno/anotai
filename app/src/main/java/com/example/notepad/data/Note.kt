@@ -44,6 +44,11 @@ data class Note(
     /** Absolute path to an attached photo, copied into internal storage, or "" for none. */
     val imagePath: String = "",
     val modifiedDate: Long = System.currentTimeMillis(),
+    /** Whether [body] is HTML (bold/italic/underline spans, via android.text.Html) rather than
+     *  plain text. Kept as an explicit flag instead of sniffing the content for tags so a plain
+     *  note whose text happens to contain a literal '<' or '&' is never misread as markup -- see
+     *  [com.example.notepad.ui.NoteFormatting]. Checklist items are always plain text. */
+    val isFormatted: Boolean = false,
     /** Stable across devices/reinstalls, unlike [id] (which is a local autoincrement and can
      *  collide between two independently-installed devices). Used to match "the same note" when
      *  merging a Google Drive backup against this device's own notes -- see

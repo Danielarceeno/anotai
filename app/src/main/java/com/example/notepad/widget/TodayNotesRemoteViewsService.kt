@@ -50,7 +50,7 @@ private class TodayNotesRemoteViewsFactory(
             if (note.type == Note.TYPE_CHECKLIST) {
                 context.getString(R.string.note_type_checklist)
             } else {
-                note.body.take(40)
+                com.example.notepad.ui.NoteFormatting.plainText(note.body, note.isFormatted).take(40)
             }
         }
         views.setTextViewText(R.id.itemTitle, label)

@@ -77,7 +77,7 @@ class NoteAdapter(
                 val done = items.count { it.checked }
                 "$done/${items.size} done"
             } else {
-                highlighted(note.body, highlight)
+                highlighted(NoteFormatting.plainText(note.body, note.isFormatted), highlight)
             }
             val cardColor = binding.root.context.getColor(NoteColors.colorResFor(note.colorIndex))
             binding.root.setCardBackgroundColor(cardColor)

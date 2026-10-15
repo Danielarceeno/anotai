@@ -57,7 +57,7 @@ class PagedNoteAdapter(
                 val done = items.count { it.checked }
                 "$done/${items.size} done"
             } else {
-                note.body
+                NoteFormatting.plainText(note.body, note.isFormatted)
             }
             val cardColor = binding.root.context.getColor(NoteColors.colorResFor(note.colorIndex))
             binding.root.setCardBackgroundColor(cardColor)
