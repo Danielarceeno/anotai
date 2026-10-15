@@ -84,6 +84,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.action_folders -> { startActivity(Intent(this, FoldersActivity::class.java)); true }
                 R.id.action_trash -> { startActivity(Intent(this, TrashActivity::class.java)); true }
                 R.id.action_sort -> { showSortDialog(); true }
+                R.id.action_select_all -> { selectAll(); true }
                 R.id.action_bulk_delete -> { confirmBulkDelete(); true }
                 R.id.action_bulk_move -> { showBulkMoveDialog(); true }
                 else -> false
@@ -102,6 +103,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Forces the paged list to reload right away instead of waiting on Room's own
+        // invalidation timing, which is noticeably laggy for this specific path: a note deleted
+        // from the editor (NoteEditorActivity.deleteAndFinish) is already gone from the database
+        // by the time this screen resumes, but without this it could still render for close to a
+        // second before disappearing, looking like the delete hadn't actually happened yet.
+        adapter.refresh()
         UndoDeleteState.consumeRecent()?.let { noteId -> showUndoSnackbar(noteId) }
     }
 
@@ -139,8 +146,19 @@ class MainActivity : AppCompatActivity() {
         for (id in intArrayOf(R.id.action_calendar, R.id.action_search, R.id.action_folders, R.id.action_trash, R.id.action_sort)) {
             menu.findItem(id)?.isVisible = !inSelection
         }
+        menu.findItem(R.id.action_select_all)?.isVisible = inSelection
         menu.findItem(R.id.action_bulk_delete)?.isVisible = inSelection
         menu.findItem(R.id.action_bulk_move)?.isVisible = inSelection
+    }
+
+    /** Grabs every note's id in the current scope (not just whatever a [PagedNoteAdapter] has
+     *  loaded so far), so "select all" then bulk delete/move works regardless of list length. */
+    private fun selectAll() {
+        lifecycleScope.launch {
+            selectedIds.clear()
+            selectedIds.addAll(repository.getAllIds(folderId))
+            updateSelectionUi()
+        }
     }
 
     private fun confirmBulkDelete() {
@@ -154,6 +172,7 @@ class MainActivity : AppCompatActivity() {
                         repository.delete(it)
                         com.example.notepad.notification.NoteReminderScheduler.cancel(this@MainActivity, it)
                     }
+                    adapter.refresh()
                 }
                 clearSelection()
             }

@@ -83,6 +83,11 @@ class NoteRepository(private val dao: NoteDao, private val appContext: Context) 
 
     fun observeByFolder(folderId: Long): LiveData<List<Note>> = dao.observeByFolder(folderId)
 
+    /** Every active note's id in the given scope ([folderId] of 0 meaning "every folder"), for
+     *  "select all" -- independent of how much of a paged list has actually loaded on screen. */
+    suspend fun getAllIds(folderId: Long): List<Long> =
+        if (folderId != 0L) dao.getActiveIdsInFolder(folderId) else dao.getAllActiveIds()
+
     suspend fun getAllForExport(): List<Note> = dao.getAllForExport()
 
     suspend fun getById(id: Long): Note? = dao.getById(id)

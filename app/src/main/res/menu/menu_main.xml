@@ -24,6 +24,11 @@
         android:title="@string/menu_sort"
         app:showAsAction="never" />
     <item
+        android:id="@+id/action_select_all"
+        android:title="@string/action_select_all"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_bulk_move"
         android:icon="@android:drawable/ic_menu_sort_by_size"
         android:title="@string/action_move_to_folder"

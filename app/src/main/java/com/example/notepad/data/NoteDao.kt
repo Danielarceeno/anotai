@@ -48,6 +48,14 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE activeState = ${Note.ACTIVE} AND folderId = :folderId ORDER BY modifiedDate DESC")
     fun observeByFolder(folderId: Long): LiveData<List<Note>>
 
+    /** Backs "select all" in [NoteRepository.getAllIds]: every active note's id, regardless of
+     *  which page a [androidx.paging.PagingSource] has actually loaded into the adapter. */
+    @Query("SELECT id FROM notes WHERE activeState = ${Note.ACTIVE}")
+    suspend fun getAllActiveIds(): List<Long>
+
+    @Query("SELECT id FROM notes WHERE activeState = ${Note.ACTIVE} AND folderId = :folderId")
+    suspend fun getActiveIdsInFolder(folderId: Long): List<Long>
+
     @Query("UPDATE notes SET folderId = 0 WHERE folderId = :folderId")
     suspend fun clearFolder(folderId: Long)
 

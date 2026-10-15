@@ -42,6 +42,7 @@
     <string name="note_deleted_message">Nota movida para a lixeira</string>
     <string name="action_undo">Desfazer</string>
     <string name="action_move_to_folder">Mover para pasta</string>
+    <string name="action_select_all">Selecionar todas</string>
     <string name="drag_to_reorder">Arraste para reordenar</string>
 
     <string name="add_note_dialog_title">Adicionar nota</string>
