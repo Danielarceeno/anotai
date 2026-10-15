@@ -1,5 +1,7 @@
 # Anotaí
 
+[![CI](https://github.com/Danielarceeno/anotai/actions/workflows/ci.yml/badge.svg)](https://github.com/Danielarceeno/anotai/actions/workflows/ci.yml)
+
 A native Android notes app written in Kotlin — text and checklist notes, a full-screen
 monthly calendar with due-date reminders, folders, a recoverable trash, PIN/biometric lock,
 a home-screen widget, launcher shortcuts, and optional Google Drive backup.
