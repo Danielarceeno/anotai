@@ -12,6 +12,18 @@ object SecurityPrefs {
     private const val KEY_PIN_HASH = "pin_hash"
     private const val KEY_PIN_SALT = "pin_salt"
     private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
+    private const val KEY_AUTO_LOCK_MINUTES = "auto_lock_minutes"
+
+    /** -1 means "never" (the pre-existing behavior: stays unlocked for the process's whole life). */
+    const val AUTO_LOCK_NEVER = -1
+    const val DEFAULT_AUTO_LOCK_MINUTES = 5
+
+    fun getAutoLockMinutes(context: Context): Int =
+        prefs(context).getInt(KEY_AUTO_LOCK_MINUTES, DEFAULT_AUTO_LOCK_MINUTES)
+
+    fun setAutoLockMinutes(context: Context, minutes: Int) {
+        prefs(context).edit().putInt(KEY_AUTO_LOCK_MINUTES, minutes).apply()
+    }
 
     // A PIN is typically 4-6 digits, i.e. only 10,000-1,000,000 possibilities -- trivial to
     // brute-force offline from an unsalted single-round hash if the SharedPreferences file is
@@ -71,7 +83,23 @@ object SecurityPrefs {
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 }
 
-/** In-memory only: unlocking is good for this process's lifetime, same as most app-lock apps. */
+/** In-memory only: tracks *when* the app was last unlocked, not just whether it ever was, so a
+ *  PIN-protected session can expire after [SecurityPrefs.getAutoLockMinutes] of being backgrounded
+ *  instead of staying unlocked for the rest of the process's life. */
 object LockState {
-    var isUnlockedThisSession = false
+    private var unlockedAtMillis: Long = 0L
+
+    fun markUnlocked() {
+        unlockedAtMillis = System.currentTimeMillis()
+    }
+
+    /** True if the app was never unlocked this process, or the configured auto-lock window has
+     *  elapsed since the last unlock ([SecurityPrefs.AUTO_LOCK_NEVER] never expires). */
+    fun isLocked(context: Context): Boolean {
+        if (unlockedAtMillis == 0L) return true
+        val timeoutMinutes = SecurityPrefs.getAutoLockMinutes(context)
+        if (timeoutMinutes == SecurityPrefs.AUTO_LOCK_NEVER) return false
+        val elapsedMillis = System.currentTimeMillis() - unlockedAtMillis
+        return elapsedMillis > timeoutMinutes * 60_000L
+    }
 }

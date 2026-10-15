@@ -8,8 +8,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
+import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.databinding.ActivityTrashBinding
+import com.example.notepad.notification.NoteReminderScheduler
 import kotlinx.coroutines.launch
 
 /** Notes that were deleted stay here (not gone for good) until restored or emptied. */
@@ -18,6 +20,7 @@ class TrashActivity : AppCompatActivity() {
     private lateinit var binding: ActivityTrashBinding
     private lateinit var repository: NoteRepository
     private lateinit var adapter: TrashAdapter
+    private var latestTrashed: List<Note> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,13 +40,19 @@ class TrashActivity : AppCompatActivity() {
         }
 
         adapter = TrashAdapter(
-            onRestore = { note -> lifecycleScope.launch { repository.restore(note.id) } },
+            onRestore = { note ->
+                lifecycleScope.launch {
+                    repository.restore(note.id)
+                    NoteReminderScheduler.schedule(this@TrashActivity, note)
+                }
+            },
             onDeleteForever = { note -> confirmDeleteForever(note.id) }
         )
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
 
         repository.observeTrashed().observe(this) { notes ->
+            latestTrashed = notes
             adapter.submitList(notes)
             binding.emptyView.visibility = if (notes.isEmpty()) View.VISIBLE else View.GONE
         }
@@ -54,7 +63,10 @@ class TrashActivity : AppCompatActivity() {
             .setTitle(R.string.trash_delete_forever)
             .setMessage(R.string.trash_delete_forever_confirm)
             .setPositiveButton(R.string.trash_delete_forever) { _, _ ->
-                lifecycleScope.launch { repository.deleteForever(noteId) }
+                lifecycleScope.launch {
+                    repository.deleteForever(noteId)
+                    NoteReminderScheduler.cancel(this@TrashActivity, noteId)
+                }
             }
             .setNegativeButton(R.string.reminder_cancel, null)
             .show()
@@ -65,7 +77,11 @@ class TrashActivity : AppCompatActivity() {
             .setTitle(R.string.trash_empty_action)
             .setMessage(R.string.trash_empty_confirm)
             .setPositiveButton(R.string.trash_empty_action) { _, _ ->
-                lifecycleScope.launch { repository.emptyTrash() }
+                val ids = latestTrashed.map { it.id }
+                lifecycleScope.launch {
+                    repository.emptyTrash()
+                    ids.forEach { NoteReminderScheduler.cancel(this@TrashActivity, it) }
+                }
             }
             .setNegativeButton(R.string.reminder_cancel, null)
             .show()

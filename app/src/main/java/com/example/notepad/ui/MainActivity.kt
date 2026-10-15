@@ -14,6 +14,10 @@ import com.example.notepad.data.FolderRepository
 import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.databinding.ActivityMainBinding
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
 /**
@@ -24,16 +28,17 @@ import kotlinx.coroutines.launch
  * Long-pressing a note enters selection mode (toolbar swaps to a count + bulk move/delete),
  * which is how multiple notes get moved to a folder or trashed at once.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var adapter: NoteAdapter
+    private lateinit var adapter: PagedNoteAdapter
     private lateinit var repository: NoteRepository
     private lateinit var folderRepository: FolderRepository
     private var folderId: Long = 0L
-    private var latestNotes: List<Note> = emptyList()
     private val selectedIds = mutableSetOf<Long>()
     private var originalTitle: CharSequence = ""
+    private val sortModeFlow = MutableStateFlow(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,7 +52,7 @@ class MainActivity : AppCompatActivity() {
         intent.getStringExtra(EXTRA_FOLDER_NAME)?.let { binding.toolbar.title = it }
         originalTitle = binding.toolbar.title ?: ""
 
-        adapter = NoteAdapter(
+        adapter = PagedNoteAdapter(
             onClick = { note -> if (selectedIds.isEmpty()) openEditor(note.id, note.type) else toggleSelection(note) },
             onTogglePin = { note -> togglePin(note) },
             onLongClick = { note -> toggleSelection(note) }
@@ -55,10 +60,13 @@ class MainActivity : AppCompatActivity() {
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
 
-        val notes = if (folderId != 0L) db.noteDao().observeByFolder(folderId) else db.noteDao().observeAll()
-        notes.observe(this) { list ->
-            latestNotes = list
-            renderSortedList()
+        sortModeFlow.value = NotesSortPrefs.getSortMode(this)
+        lifecycleScope.launch {
+            sortModeFlow.flatMapLatest { sortMode -> repository.observeAllPaged(folderId, sortMode) }
+                .collectLatest { pagingData ->
+                    adapter.submitData(pagingData)
+                    adapter.setSelection(selectedIds.toSet())
+                }
         }
 
         binding.addNoteButton.setOnClickListener {
@@ -100,7 +108,10 @@ class MainActivity : AppCompatActivity() {
     private fun showUndoSnackbar(noteId: Long) {
         Snackbar.make(binding.root, R.string.note_deleted_message, Snackbar.LENGTH_LONG)
             .setAction(R.string.action_undo) {
-                lifecycleScope.launch { repository.restore(noteId) }
+                lifecycleScope.launch {
+                    repository.restore(noteId)
+                    repository.getById(noteId)?.let { com.example.notepad.notification.NoteReminderScheduler.schedule(this@MainActivity, it) }
+                }
             }
             .show()
     }
@@ -139,7 +150,10 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(R.string.action_remove) { _, _ ->
                 val ids = selectedIds.toList()
                 lifecycleScope.launch {
-                    ids.forEach { repository.delete(it) }
+                    ids.forEach {
+                        repository.delete(it)
+                        com.example.notepad.notification.NoteReminderScheduler.cancel(this@MainActivity, it)
+                    }
                 }
                 clearSelection()
             }
@@ -158,9 +172,10 @@ class MainActivity : AppCompatActivity() {
                 .setItems(labels.toTypedArray()) { _, which ->
                     val targetFolderId = if (which == 0) 0L else folders[which - 1].id
                     val ids = selectedIds.toList()
+                    val loaded = adapter.snapshot().items
                     lifecycleScope.launch {
                         ids.forEach { id ->
-                            latestNotes.firstOrNull { it.id == id }?.let { note ->
+                            (loaded.firstOrNull { it.id == id } ?: repository.getById(id))?.let { note ->
                                 repository.update(note.copy(folderId = targetFolderId))
                             }
                         }
@@ -171,19 +186,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun renderSortedList() {
-        adapter.submitList(NotesSortPrefs.apply(latestNotes, NotesSortPrefs.getSortMode(this)))
-        adapter.setSelection(selectedIds.toSet())
-    }
-
     private fun showSortDialog() {
-        val options = arrayOf(getString(R.string.sort_recent), getString(R.string.sort_color))
+        val options = arrayOf(
+            getString(R.string.sort_recent),
+            getString(R.string.sort_color),
+            getString(R.string.sort_title),
+            getString(R.string.sort_due_date)
+        )
         val current = NotesSortPrefs.getSortMode(this)
         AlertDialog.Builder(this)
             .setTitle(R.string.menu_sort)
             .setSingleChoiceItems(options, current) { dialog, which ->
                 NotesSortPrefs.setSortMode(this, which)
-                renderSortedList()
+                sortModeFlow.value = which
                 dialog.dismiss()
             }
             .show()

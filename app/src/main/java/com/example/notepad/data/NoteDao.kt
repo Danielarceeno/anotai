@@ -1,13 +1,24 @@
 package com.example.notepad.data
 
 import androidx.lifecycle.LiveData
+import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.RawQuery
 import androidx.room.Update
+import androidx.sqlite.db.SupportSQLiteQuery
 
 @Dao
 interface NoteDao {
+
+    /** Backs [NoteRepository.observeAllPaged]: the WHERE/ORDER BY depends on the current folder
+     *  filter and sort mode, built as SQL text in [NoteRepository] rather than as several
+     *  near-duplicate `@Query` methods (one per sort mode x folder-or-not combination). Room
+     *  still tracks invalidation correctly via [observedEntities] despite the query itself being
+     *  opaque to it at compile time. */
+    @RawQuery(observedEntities = [Note::class])
+    fun observeAllPagedRaw(query: SupportSQLiteQuery): PagingSource<Int, Note>
 
     @Insert
     suspend fun insert(note: Note): Long

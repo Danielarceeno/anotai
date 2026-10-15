@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Anotaí</string>
+    <string name="search_title">Pesquisar notas</string>
+    <string name="search_hint">Pesquise suas notas</string>
+    <string name="empty_search_results">Nenhuma nota corresponde a &#8220;%1$s&#8221;</string>
+    <string name="menu_search">Pesquisar</string>
+    <string name="title_hint">Título</string>
+    <string name="body_hint">Nota</string>
+    <string name="save_and_close">Salvar e fechar</string>
+    <string name="note_color">Cor da nota</string>
+    <string name="editing_label">Editando</string>
+    <string name="menu_delete">Excluir</string>
+    <string name="add_note">Adicionar nota</string>
+    <string name="add_item_hint">Adicionar item</string>
+    <string name="set_reminder">Definir lembrete</string>
+    <string name="menu_calendar">Calendário</string>
+    <string name="menu_notes">Notas</string>
+    <string name="calendar_title">Anotaí</string>
+    <string name="day_notes_add">Adicionar</string>
+    <string name="mark_done">Marcar como concluída</string>
+    <string name="previous_month">Mês anterior</string>
+    <string name="next_month">Próximo mês</string>
+    <string name="action_mark_done">Marcar como concluída</string>
+    <string name="action_mark_undone">Marcar como não concluída</string>
+    <string name="action_reminder">Lembrete</string>
+    <string name="action_remove">Remover</string>
+    <string name="action_pin">Fixar no topo</string>
+    <string name="note_repeats">Repete</string>
+    <string name="menu_sort">Ordenar</string>
+    <string name="sort_recent">Mais recentes</string>
+    <string name="sort_color">Cor</string>
+    <string name="sort_title">Título</string>
+    <string name="sort_due_date">Data de vencimento</string>
+    <string name="settings_biometric_title">Desbloquear com digital</string>
+    <string name="snooze_action">Adiar 1h</string>
+    <string name="add_photo">Adicionar foto</string>
+    <string name="change_photo">Trocar foto</string>
+    <string name="action_share">Compartilhar</string>
+    <string name="action_share_image">Compartilhar como imagem</string>
+    <string name="share_image_failed">Não foi possível criar a imagem</string>
+    <string name="note_deleted_message">Nota movida para a lixeira</string>
+    <string name="action_undo">Desfazer</string>
+    <string name="action_move_to_folder">Mover para pasta</string>
+    <string name="drag_to_reorder">Arraste para reordenar</string>
+
+    <string name="add_note_dialog_title">Adicionar nota</string>
+    <string name="note_type_text">Texto</string>
+    <string name="note_type_checklist">Lista de tarefas</string>
+    <string name="shortcut_new_text_note">Nova nota de texto</string>
+    <string name="shortcut_new_checklist_note">Nova lista de tarefas</string>
+
+    <string name="reminder_title">Calendário</string>
+    <string name="reminder_dismiss">Dispensar</string>
+    <string name="reminder_type_label">Tipo</string>
+    <string name="reminder_type_date">Data</string>
+    <string name="reminder_when_label">Quando</string>
+    <string name="reminder_when_no_date">Sem data</string>
+    <string name="reminder_when_today">Hoje</string>
+    <string name="reminder_when_tomorrow">Amanhã</string>
+    <string name="reminder_when_specific_date">Data específica…</string>
+    <string name="reminder_time_label">Horário</string>
+    <string name="reminder_time_all_day">Dia inteiro</string>
+    <string name="reminder_time_pick">Escolher um horário…</string>
+    <string name="reminder_repetition_label">Repetição</string>
+    <string name="reminder_cancel">Cancelar</string>
+    <string name="reminder_done">Concluído</string>
+    <string name="reminder_repeat_until_label">Repetir até</string>
+    <string name="reminder_repeat_until_never">Nunca</string>
+    <string name="reminder_repeat_until_pick_date">Escolher uma data…</string>
+
+    <string name="notification_channel_name">Lembretes diários</string>
+    <string name="notification_subtext">Notas de hoje</string>
+    <string name="notification_hidden_title">Anotaí</string>
+    <string name="notification_hidden_text">Você tem lembretes para hoje</string>
+    <string name="notifications_disabled_message">As notificações estão desativadas, então os lembretes diários não vão aparecer</string>
+    <string name="notifications_disabled_action">Ativar</string>
+    <string name="battery_optimization_message">A otimização de bateria pode atrasar ou bloquear os lembretes diários</string>
+    <string name="battery_optimization_action">Corrigir</string>
+
+    <string name="widget_title">Hoje — %1$s</string>
+    <string name="widget_empty">Nenhuma nota para hoje</string>
+    <string name="widget_description">Mostra as notas e lembretes de hoje na tela inicial</string>
+
+    <string name="trash_title">Lixeira</string>
+    <string name="trash_empty">A lixeira está vazia</string>
+    <string name="trash_restore">Restaurar</string>
+    <string name="trash_delete_forever">Excluir permanentemente</string>
+    <string name="trash_delete_forever_confirm">Esta nota será excluída permanentemente. Essa ação não pode ser desfeita.</string>
+    <string name="trash_empty_action">Esvaziar lixeira</string>
+    <string name="trash_empty_confirm">Excluir permanentemente todas as notas da lixeira? Essa ação não pode ser desfeita.</string>
+
+    <string name="folders_title">Pastas</string>
+    <string name="folders_empty">Nenhuma pasta ainda</string>
+    <string name="folder_add">Adicionar pasta</string>
+    <string name="folder_rename">Renomear pasta</string>
+    <string name="folder_name_hint">Nome da pasta</string>
+    <string name="folder_delete_confirm">Excluir esta pasta? As notas dela ficarão sem pasta, não serão excluídas.</string>
+    <string name="folder_none">Sem pasta</string>
+    <string name="folder_choose">Escolher pasta</string>
+    <string name="folder_manage">Gerenciar pastas…</string>
+
+    <string name="settings_title">Configurações</string>
+    <string name="settings_appearance_title">Aparência</string>
+    <string name="settings_theme_title">Tema</string>
+    <string name="theme_system">Padrão do sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Escuro</string>
+    <string name="settings_notifications_title">Notificações de lembrete</string>
+    <string name="settings_reminder_time_title">Horário do lembrete diário</string>
+    <string name="settings_folders_title">Pastas</string>
+    <string name="settings_trash_title">Lixeira</string>
+    <string name="settings_backup_title">Backup</string>
+    <string name="settings_export_title">Exportar notas para arquivo</string>
+    <string name="settings_import_title">Importar notas de arquivo</string>
+    <string name="settings_drive_backup_title">Backup no Google Drive</string>
+    <string name="settings_drive_not_signed_in">Entrar com o Google</string>
+    <string name="settings_backup_frequency_title">Frequência do backup automático</string>
+    <string name="backup_frequency_hours">A cada %1$d horas</string>
+    <string name="backup_frequency_daily">Uma vez por dia</string>
+    <string name="drive_signed_in_as">Conectado como %1$s</string>
+    <string name="drive_backup_now">Fazer backup agora</string>
+    <string name="drive_restore">Restaurar backup</string>
+    <string name="drive_sign_out">Sair</string>
+    <string name="drive_backup_success">Backup feito no Google Drive</string>
+    <string name="drive_backup_failed">Falha no backup do Google Drive</string>
+    <string name="drive_restore_failed">Falha ao restaurar do Google Drive</string>
+    <string name="drive_no_backup_found">Nenhum backup encontrado no Google Drive</string>
+    <string name="drive_sign_in_failed">Falha ao entrar com o Google</string>
+    <string name="settings_security_title">Segurança</string>
+    <string name="settings_pin_lock_title">Bloquear app com PIN</string>
+    <string name="settings_auto_lock_title">Bloqueio automático após</string>
+    <string name="auto_lock_minutes">%1$d minutos</string>
+    <string name="auto_lock_one_minute">1 minuto</string>
+    <string name="auto_lock_never">Nunca (fica desbloqueado até o app ser fechado)</string>
+    <string name="settings_change_pin_title">Trocar PIN</string>
+    <string name="set_pin_title">Definir um PIN</string>
+    <string name="enter_pin_hint">PIN com 4+ dígitos</string>
+    <string name="confirm_pin_hint">Confirmar PIN</string>
+    <string name="pin_mismatch">Os PINs não coincidem</string>
+    <string name="pin_too_short">O PIN precisa ter pelo menos 4 dígitos</string>
+    <string name="unlock_title">Digite o PIN</string>
+    <string name="unlock_action">Desbloquear</string>
+    <string name="unlock_wrong_pin">PIN incorreto</string>
+    <string name="export_success">Notas exportadas</string>
+    <string name="export_failed">Falha ao exportar</string>
+    <string name="import_failed">Falha ao importar: arquivo de backup inválido</string>
+
+    <plurals name="selected_count">
+        <item quantity="one">%1$d selecionada</item>
+        <item quantity="other">%1$d selecionadas</item>
+    </plurals>
+    <plurals name="bulk_delete_confirm">
+        <item quantity="one">Mover %1$d nota para a lixeira?</item>
+        <item quantity="other">Mover %1$d notas para a lixeira?</item>
+    </plurals>
+    <plurals name="import_success">
+        <item quantity="one">%1$d nota importada</item>
+        <item quantity="other">%1$d notas importadas</item>
+    </plurals>
+
+    <string-array name="repetition_options">
+        <item>Evento único</item>
+        <item>Diariamente</item>
+        <item>Todo dia útil (seg–sex)</item>
+        <item>Semanalmente</item>
+        <item>Quinzenalmente</item>
+        <item>Mensalmente</item>
+        <item>Anualmente</item>
+    </string-array>
+</resources>

@@ -113,6 +113,15 @@ object DayNotesDialog {
 
             content.addView(dot)
             content.addView(title)
+            if (note.repetition != Note.REPEAT_NONE) {
+                val repeatIcon = android.widget.ImageView(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(dotSize, dotSize).apply { marginStart = rowPadding / 2 }
+                    setImageResource(R.drawable.ic_repeat)
+                    contentDescription = context.getString(R.string.note_repeats)
+                    alpha = 0.6f
+                }
+                content.addView(repeatIcon)
+            }
             row.addView(content)
             row.addView(doneCheckBox)
             binding.notesContainer.addView(row)

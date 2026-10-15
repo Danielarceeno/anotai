@@ -50,21 +50,28 @@
             android:textAppearance="?attr/textAppearanceLabelLarge" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/todayButton"
+            android:id="@+id/whenButton"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/reminder_when_today" />
+            android:layout_marginBottom="20dp"
+            app:icon="@android:drawable/ic_menu_my_calendar" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/reminder_time_label"
+            android:textAppearance="?attr/textAppearanceLabelLarge" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/dateButton"
+            android:id="@+id/timeButton"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:layout_marginBottom="20dp"
-            app:icon="@android:drawable/ic_menu_my_calendar" />
+            app:icon="@android:drawable/ic_menu_recent_history" />
 
         <TextView
             android:layout_width="wrap_content"

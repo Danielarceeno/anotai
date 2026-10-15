@@ -1,6 +1,7 @@
 package com.example.notepad.ui
 
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -10,8 +11,10 @@ import com.example.notepad.R
 import com.example.notepad.data.Note
 import com.example.notepad.databinding.ActivityReminderBinding
 import java.text.DateFormat
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 
 /**
  * Sets a note's reminder/calendar date and repetition, styled after the
@@ -19,12 +22,16 @@ import java.util.Date
  * When / Repetition / Cancel-Done). When a repetition is chosen, a
  * "Repeat until" row appears so a recurring task can have an end date
  * instead of repeating forever.
+ *
+ * The "When" field is a Google Tasks-style quick pick (No date / Today / Tomorrow / the next
+ * 5 weekdays by name / Specific date), rather than a bare date button -- see [showWhenOptions].
  */
 class ReminderActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityReminderBinding
     private var selectedDate: Long = 0L
     private var repeatUntil: Long = 0L
+    private var reminderTimeMinutes: Int = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,8 +42,10 @@ class ReminderActivity : AppCompatActivity() {
 
         selectedDate = intent.getLongExtra(EXTRA_DUE_DATE, 0L).takeIf { it != 0L } ?: startOfToday()
         repeatUntil = intent.getLongExtra(EXTRA_REPEAT_UNTIL, 0L)
+        reminderTimeMinutes = intent.getIntExtra(EXTRA_REMINDER_TIME_MINUTES, -1)
         binding.repetitionSpinner.setSelection(intent.getIntExtra(EXTRA_REPETITION, Note.REPEAT_NONE))
         updateDateButtonText()
+        updateTimeButtonText()
         updateRepeatUntilVisibility()
         updateRepeatUntilButtonText()
 
@@ -47,14 +56,12 @@ class ReminderActivity : AppCompatActivity() {
                     .putExtra(EXTRA_DUE_DATE, 0L)
                     .putExtra(EXTRA_REPETITION, Note.REPEAT_NONE)
                     .putExtra(EXTRA_REPEAT_UNTIL, 0L)
+                    .putExtra(EXTRA_REMINDER_TIME_MINUTES, -1)
             )
             finish()
         }
-        binding.todayButton.setOnClickListener {
-            selectedDate = startOfToday()
-            updateDateButtonText()
-        }
-        binding.dateButton.setOnClickListener { openDatePicker() }
+        binding.whenButton.setOnClickListener { showWhenOptions() }
+        binding.timeButton.setOnClickListener { showTimeOptions() }
         binding.repetitionSpinner.setOnItemSelectedListener(object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
                 updateRepeatUntilVisibility()
@@ -70,13 +77,81 @@ class ReminderActivity : AppCompatActivity() {
                     .putExtra(EXTRA_DUE_DATE, selectedDate)
                     .putExtra(EXTRA_REPETITION, binding.repetitionSpinner.selectedItemPosition)
                     .putExtra(EXTRA_REPEAT_UNTIL, repeatUntil)
+                    .putExtra(EXTRA_REMINDER_TIME_MINUTES, if (selectedDate == 0L) -1 else reminderTimeMinutes)
             )
             finish()
         }
     }
 
+    /** All day / an exact time for the alarm set in [NoteReminderScheduler], same two-item quick
+     *  pick pattern as [showRepeatUntilOptions]. */
+    private fun showTimeOptions() {
+        val options = arrayOf(getString(R.string.reminder_time_all_day), getString(R.string.reminder_time_pick))
+        AlertDialog.Builder(this)
+            .setItems(options) { _, which ->
+                if (which == 0) {
+                    reminderTimeMinutes = -1
+                    updateTimeButtonText()
+                } else {
+                    openTimePicker()
+                }
+            }
+            .show()
+    }
+
+    private fun openTimePicker() {
+        val initialHour = if (reminderTimeMinutes >= 0) reminderTimeMinutes / 60 else 9
+        val initialMinute = if (reminderTimeMinutes >= 0) reminderTimeMinutes % 60 else 0
+        TimePickerDialog(
+            this,
+            { _, hour, minute ->
+                reminderTimeMinutes = hour * 60 + minute
+                updateTimeButtonText()
+            },
+            initialHour,
+            initialMinute,
+            true
+        ).show()
+    }
+
+    private fun updateTimeButtonText() {
+        binding.timeButton.text = if (reminderTimeMinutes < 0) {
+            getString(R.string.reminder_time_all_day)
+        } else {
+            String.format(Locale.getDefault(), "%02d:%02d", reminderTimeMinutes / 60, reminderTimeMinutes % 60)
+        }
+    }
+
+    /** Google Tasks-style quick pick: No date / Today / Tomorrow / the next 5 calendar days (by
+     *  weekday name, covering out to a week from today) / Specific date for anything further out. */
+    private fun showWhenOptions() {
+        val today = startOfToday()
+        val oneDayMillis = 24 * 60 * 60 * 1000L
+        val weekdayFormat = SimpleDateFormat("EEEE", Locale.getDefault())
+
+        val labels = mutableListOf(getString(R.string.reminder_when_no_date), getString(R.string.reminder_when_today), getString(R.string.reminder_when_tomorrow))
+        val dates = mutableListOf(0L, today, today + oneDayMillis)
+        for (daysAhead in 2..6) {
+            val millis = today + daysAhead * oneDayMillis
+            labels.add(weekdayFormat.format(Date(millis)).replaceFirstChar { it.uppercase(Locale.getDefault()) })
+            dates.add(millis)
+        }
+        labels.add(getString(R.string.reminder_when_specific_date))
+
+        AlertDialog.Builder(this)
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which == labels.lastIndex) {
+                    openDatePicker()
+                } else {
+                    selectedDate = dates[which]
+                    updateDateButtonText()
+                }
+            }
+            .show()
+    }
+
     private fun openDatePicker() {
-        val cal = Calendar.getInstance().apply { timeInMillis = selectedDate }
+        val cal = Calendar.getInstance().apply { timeInMillis = selectedDate.takeIf { it != 0L } ?: startOfToday() }
         DatePickerDialog(
             this,
             { _, year, month, day ->
@@ -91,7 +166,11 @@ class ReminderActivity : AppCompatActivity() {
     }
 
     private fun updateDateButtonText() {
-        binding.dateButton.text = DateFormat.getDateInstance(DateFormat.FULL).format(Date(selectedDate))
+        binding.whenButton.text = if (selectedDate == 0L) {
+            getString(R.string.reminder_when_no_date)
+        } else {
+            DateFormat.getDateInstance(DateFormat.FULL).format(Date(selectedDate))
+        }
     }
 
     private fun updateRepeatUntilVisibility() {
@@ -150,5 +229,6 @@ class ReminderActivity : AppCompatActivity() {
         const val EXTRA_DUE_DATE = "due_date"
         const val EXTRA_REPETITION = "repetition"
         const val EXTRA_REPEAT_UNTIL = "repeat_until"
+        const val EXTRA_REMINDER_TIME_MINUTES = "reminder_time_minutes"
     }
 }

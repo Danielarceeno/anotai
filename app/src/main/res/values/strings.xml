@@ -26,14 +26,19 @@
     <string name="action_reminder">Reminder</string>
     <string name="action_remove">Remove</string>
     <string name="action_pin">Pin to top</string>
+    <string name="note_repeats">Repeats</string>
     <string name="menu_sort">Sort</string>
     <string name="sort_recent">Most recent</string>
     <string name="sort_color">Color</string>
+    <string name="sort_title">Title</string>
+    <string name="sort_due_date">Due date</string>
     <string name="settings_biometric_title">Unlock with fingerprint</string>
     <string name="snooze_action">Snooze 1h</string>
     <string name="add_photo">Add photo</string>
     <string name="change_photo">Change photo</string>
     <string name="action_share">Share</string>
+    <string name="action_share_image">Share as image</string>
+    <string name="share_image_failed">Couldn\'t create the image</string>
     <string name="note_deleted_message">Note moved to trash</string>
     <string name="action_undo">Undo</string>
     <string name="action_move_to_folder">Move to folder</string>
@@ -50,7 +55,13 @@
     <string name="reminder_type_label">Type</string>
     <string name="reminder_type_date">Date</string>
     <string name="reminder_when_label">When</string>
+    <string name="reminder_when_no_date">No date</string>
     <string name="reminder_when_today">Today</string>
+    <string name="reminder_when_tomorrow">Tomorrow</string>
+    <string name="reminder_when_specific_date">Specific date…</string>
+    <string name="reminder_time_label">Time</string>
+    <string name="reminder_time_all_day">All day</string>
+    <string name="reminder_time_pick">Pick a time…</string>
     <string name="reminder_repetition_label">Repetition</string>
     <string name="reminder_cancel">Cancel</string>
     <string name="reminder_done">Done</string>
@@ -60,6 +71,8 @@
 
     <string name="notification_channel_name">Daily reminders</string>
     <string name="notification_subtext">Today\'s notes</string>
+    <string name="notification_hidden_title">Anotaí</string>
+    <string name="notification_hidden_text">You have reminders for today</string>
     <string name="notifications_disabled_message">Notifications are off, so daily reminders won\'t show</string>
     <string name="notifications_disabled_action">Enable</string>
     <string name="battery_optimization_message">Battery optimization may delay or block daily reminders</string>
@@ -88,6 +101,12 @@
     <string name="folder_manage">Manage folders…</string>
 
     <string name="settings_title">Settings</string>
+    <string name="settings_appearance_title">Appearance</string>
+    <string name="settings_theme_title">Theme</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="settings_notifications_title">Reminder notifications</string>
     <string name="settings_reminder_time_title">Daily reminder time</string>
     <string name="settings_folders_title">Folders</string>
     <string name="settings_trash_title">Trash</string>
@@ -96,6 +115,9 @@
     <string name="settings_import_title">Import notes from file</string>
     <string name="settings_drive_backup_title">Google Drive backup</string>
     <string name="settings_drive_not_signed_in">Sign in with Google</string>
+    <string name="settings_backup_frequency_title">Automatic backup frequency</string>
+    <string name="backup_frequency_hours">Every %1$d hours</string>
+    <string name="backup_frequency_daily">Once a day</string>
     <string name="drive_signed_in_as">Signed in as %1$s</string>
     <string name="drive_backup_now">Back up now</string>
     <string name="drive_restore">Restore backup</string>
@@ -105,12 +127,12 @@
     <string name="drive_restore_failed">Google Drive restore failed</string>
     <string name="drive_no_backup_found">No backup found in Google Drive</string>
     <string name="drive_sign_in_failed">Google sign-in failed</string>
-    <string name="drive_conflict_title">Newer backup found</string>
-    <string name="drive_conflict_message">There\'s a newer backup in Google Drive, probably from another device. Overwriting it now would lose those changes.</string>
-    <string name="drive_conflict_restore">Restore from cloud</string>
-    <string name="drive_conflict_overwrite">Overwrite anyway</string>
     <string name="settings_security_title">Security</string>
     <string name="settings_pin_lock_title">Lock app with PIN</string>
+    <string name="settings_auto_lock_title">Auto-lock after</string>
+    <string name="auto_lock_minutes">%1$d minutes</string>
+    <string name="auto_lock_one_minute">1 minute</string>
+    <string name="auto_lock_never">Never (stays unlocked until the app is closed)</string>
     <string name="settings_change_pin_title">Change PIN</string>
     <string name="set_pin_title">Set a PIN</string>
     <string name="enter_pin_hint">4+ digit PIN</string>

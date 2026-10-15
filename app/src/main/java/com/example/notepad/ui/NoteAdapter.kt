@@ -6,6 +6,7 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.BackgroundColorSpan
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
@@ -87,6 +88,8 @@ class NoteAdapter(
             val textColor = if (NoteColors.isLight(cardColor)) 0xFF1A1A1A.toInt() else 0xFFF5F5F5.toInt()
             binding.titleView.setTextColor(textColor)
             binding.bodyView.setTextColor(textColor)
+            binding.repeatIcon.visibility = if (note.repetition != Note.REPEAT_NONE) View.VISIBLE else View.GONE
+            binding.repeatIcon.imageTintList = ColorStateList.valueOf(textColor)
             binding.root.setOnClickListener { onClick(note) }
             binding.root.setOnLongClickListener { onLongClick(note); true }
 

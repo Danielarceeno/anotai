@@ -28,6 +28,15 @@
                 android:textStyle="bold"
                 android:textAppearance="?attr/textAppearanceTitleMedium" />
 
+            <ImageView
+                android:id="@+id/repeatIcon"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginEnd="4dp"
+                android:contentDescription="@string/note_repeats"
+                android:src="@drawable/ic_repeat"
+                android:visibility="gone" />
+
             <ImageButton
                 android:id="@+id/pinButton"
                 android:layout_width="36dp"

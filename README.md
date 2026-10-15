@@ -53,6 +53,19 @@ cd anotai
 
 Or open the folder in Android Studio and run the `app` configuration.
 
+### Release build
+
+`./gradlew assembleRelease` always produces a minified, shrunk release APK
+(`app/proguard-rules.pro`). To get a *signed* one you can actually install, copy
+[`keystore.properties.example`](keystore.properties.example) to `keystore.properties` (gitignored)
+and point it at a keystore — generate one with:
+
+```bash
+keytool -genkeypair -v -keystore app/anotai-release.jks -alias anotai -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Without `keystore.properties`, the release build still succeeds; the APK just isn't signed yet.
+
 ### Google Drive backup (optional)
 
 The app works fully offline without this. To enable "sign in with Google" backup, you need
@@ -114,14 +127,30 @@ ESCAPE '\'` over a local SQLite table, not full-text search).
 ## Testing
 
 - `app/src/test/` — JUnit unit tests for pure logic (recurrence math, search-pattern escaping).
-- No instrumentation (`androidTest`) or UI tests yet — see Known limitations.
+- `app/src/androidTest/` — Espresso end-to-end tests (create a note, sort notes, pick a theme,
+  cold-start the launcher). Run with `./gradlew connectedDebugAndroidTest` against a connected
+  device/emulator. Espresso requires animations to be off on the target device/emulator
+  (Settings → Developer options → turn off Window/Transition/Animator animation scale); some
+  OEM builds block `adb shell settings put global ...` for this, in which case toggle it by hand
+  in Developer options.
+
+## Security & performance
+
+- The local database is encrypted at rest with SQLCipher (`AppDatabase`/`DatabaseKeyProvider`):
+  the per-install passphrase lives in Keystore-backed `EncryptedSharedPreferences`, and an
+  existing plaintext database from before this was added is migrated to an encrypted one
+  automatically on first launch after updating.
+- The PIN lock re-locks the app after a configurable period of inactivity (Settings → Auto-lock,
+  default 5 minutes), not only when the process is killed.
+- The main notes list is paged from Room (`NoteRepository.observeAllPaged` / `PagedNoteAdapter`)
+  instead of loading every note into memory at once; search and folder views still load their
+  (typically much smaller) result sets directly.
 
 ## Known limitations
 
-- Drive conflict handling is "pick a whole version" (restore cloud / overwrite), not a
-  field-level merge.
-- No instrumentation/UI test coverage.
-- Debug-signed only; no release/minified build configuration yet.
+- Drive sync merges notes per-note by a stable UUID (newer `modifiedDate` wins per note), but
+  never deletes: a note removed on one device while another device is offline comes back on next
+  sync instead of staying deleted.
 
 ## License
 

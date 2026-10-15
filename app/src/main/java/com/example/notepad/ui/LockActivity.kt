@@ -73,7 +73,7 @@ class LockActivity : AppCompatActivity() {
     }
 
     private fun unlock() {
-        LockState.isUnlockedThisSession = true
+        LockState.markUnlocked()
         // Preserves a launcher-shortcut action (e.g. "new text note") across the lock screen --
         // CalendarActivity attaches it as this extra before redirecting here, since otherwise
         // unlocking would always land on the plain calendar instead of finishing what the

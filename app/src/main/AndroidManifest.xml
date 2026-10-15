@@ -4,10 +4,15 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Auto-granted at install (no user toggle needed) for apps whose core purpose is alarms or
+         reminders, which this is. SCHEDULE_EXACT_ALARM stays as a fallback for API 31 and 32,
+         where USE_EXACT_ALARM doesn't exist yet and the user must grant "Alarms & reminders" by hand. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
+        android:name=".NotepadApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -94,6 +99,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".notification.NoteReminderReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".notification.SnoozeReceiver"
             android:exported="false" />
 
@@ -120,6 +129,18 @@
             android:name=".widget.TodayNotesRemoteViewsService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- Hands a "share as image" render of a note to whatever app the user picks, without
+             granting that app's whole package access to this app's files. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 </manifest>

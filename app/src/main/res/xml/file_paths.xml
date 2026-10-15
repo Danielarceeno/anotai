@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- "Share as image" renders go here (see ShareImageHelper); the rest of the app's internal
+         storage (note photos, the Room DB) is deliberately not exposed through this provider. -->
+    <cache-path name="shared_images" path="shared_images/" />
+</paths>

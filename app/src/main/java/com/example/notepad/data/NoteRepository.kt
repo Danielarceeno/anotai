@@ -2,8 +2,13 @@ package com.example.notepad.data
 
 import android.content.Context
 import androidx.lifecycle.LiveData
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.sqlite.db.SimpleSQLiteQuery
 import com.example.notepad.widget.TodayNotesWidgetProvider
 import java.io.File
+import kotlinx.coroutines.flow.Flow
 
 /**
  * [appContext] should always be an application context (not an Activity one):
@@ -14,6 +19,28 @@ import java.io.File
 class NoteRepository(private val dao: NoteDao, private val appContext: Context) {
 
     fun observeAll(): LiveData<List<Note>> = dao.observeAll()
+
+    /**
+     * Pages the main notes list from Room instead of loading every active note into memory at
+     * once. [sortMode] matches [com.example.notepad.ui.NotesSortPrefs]'s `SORT_*` constants
+     * (duplicated here as plain ints rather than a compile-time dependency, since those live in
+     * the `ui` package and this is `data`); pinned notes always sort first, same as
+     * [com.example.notepad.ui.NotesSortPrefs.apply] does for the non-paged lists. [folderId] of
+     * 0 means "every folder", matching the rest of the app's convention for "no folder".
+     */
+    fun observeAllPaged(folderId: Long, sortMode: Int): Flow<PagingData<Note>> {
+        val orderBy = when (sortMode) {
+            1 -> "pinned DESC, colorIndex ASC" // SORT_COLOR
+            2 -> "pinned DESC, title COLLATE NOCASE ASC" // SORT_TITLE
+            3 -> "pinned DESC, CASE WHEN dueDate = 0 THEN 1 ELSE 0 END ASC, dueDate ASC" // SORT_DUE_DATE
+            else -> "pinned DESC, modifiedDate DESC" // SORT_RECENT
+        }
+        val folderClause = if (folderId != 0L) "AND folderId = $folderId" else ""
+        val sql = "SELECT * FROM notes WHERE activeState = ${Note.ACTIVE} $folderClause ORDER BY $orderBy"
+        return Pager(PagingConfig(pageSize = 30, enablePlaceholders = false)) {
+            dao.observeAllPagedRaw(SimpleSQLiteQuery(sql))
+        }.flow
+    }
 
     suspend fun insert(note: Note): Long {
         val id = dao.insert(note)

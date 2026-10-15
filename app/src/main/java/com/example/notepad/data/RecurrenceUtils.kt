@@ -34,6 +34,21 @@ object RecurrenceUtils {
         }
     }
 
+    /** The first start-of-day millis on or after [fromDayStart] that [note] occurs on, within
+     *  [maxDaysAhead] (a year by default -- enough to always find the next yearly occurrence,
+     *  while still bounding the scan), or null if there isn't one (e.g. [Note.repeatUntil] has
+     *  already passed). Used by [com.example.notepad.notification.NoteReminderScheduler] to know
+     *  when to fire a recurring note's next exact-time alarm. */
+    fun nextOccurrenceOnOrAfter(note: Note, fromDayStart: Long, maxDaysAhead: Int = 370): Long? {
+        val oneDayMillis = 24 * 60 * 60 * 1000L
+        var day = fromDayStart
+        repeat(maxDaysAhead) {
+            if (occursOn(note, day)) return day
+            day += oneDayMillis
+        }
+        return null
+    }
+
     /** Whole-day difference between two start-of-day millis values, DST-safe (diffed at local noon). */
     private fun daysBetween(fromStartOfDay: Long, toStartOfDay: Long): Long {
         val noon = 12 * 60 * 60 * 1000L

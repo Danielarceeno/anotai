@@ -10,6 +10,8 @@ object NotesSortPrefs {
 
     const val SORT_RECENT = 0
     const val SORT_COLOR = 1
+    const val SORT_TITLE = 2
+    const val SORT_DUE_DATE = 3
 
     fun getSortMode(context: Context): Int =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getInt(KEY_SORT_MODE, SORT_RECENT)
@@ -22,6 +24,10 @@ object NotesSortPrefs {
     fun apply(notes: List<Note>, mode: Int): List<Note> {
         val sorted = when (mode) {
             SORT_COLOR -> notes.sortedBy { it.colorIndex }
+            SORT_TITLE -> notes.sortedBy { it.title.lowercase() }
+            // Notes with no due date (0L) sort last, not first, since "someday" is less
+            // actionable than anything with an actual date.
+            SORT_DUE_DATE -> notes.sortedBy { if (it.dueDate == 0L) Long.MAX_VALUE else it.dueDate }
             else -> notes
         }
         return sorted.sortedByDescending { it.pinned }

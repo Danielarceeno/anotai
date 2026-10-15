@@ -24,6 +24,7 @@ import com.example.notepad.data.FolderRepository
 import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.databinding.ActivityNoteEditorBinding
+import com.example.notepad.notification.NoteReminderScheduler
 import com.example.notepad.notification.ReminderNotifier
 import java.io.File
 import java.text.DateFormat
@@ -51,6 +52,7 @@ class NoteEditorActivity : AppCompatActivity() {
     private var selectedDueDate = 0L
     private var selectedRepetition = Note.REPEAT_NONE
     private var selectedRepeatUntil = 0L
+    private var selectedReminderTimeMinutes = -1
     private var selectedFolderId = 0L
     private var selectedImagePath = ""
     private val colorSwatches = mutableListOf<ImageView>()
@@ -76,6 +78,7 @@ class NoteEditorActivity : AppCompatActivity() {
         selectedDueDate = data.getLongExtra(ReminderActivity.EXTRA_DUE_DATE, 0L)
         selectedRepetition = data.getIntExtra(ReminderActivity.EXTRA_REPETITION, Note.REPEAT_NONE)
         selectedRepeatUntil = data.getLongExtra(ReminderActivity.EXTRA_REPEAT_UNTIL, 0L)
+        selectedReminderTimeMinutes = data.getIntExtra(ReminderActivity.EXTRA_REMINDER_TIME_MINUTES, -1)
         updateReminderRowText()
     }
 
@@ -123,6 +126,7 @@ class NoteEditorActivity : AppCompatActivity() {
                 selectedDueDate = note?.dueDate ?: 0L
                 selectedRepetition = note?.repetition ?: Note.REPEAT_NONE
                 selectedRepeatUntil = note?.repeatUntil ?: 0L
+                selectedReminderTimeMinutes = note?.reminderTimeMinutes ?: -1
                 selectedFolderId = note?.folderId ?: 0L
                 selectedImagePath = note?.imagePath ?: ""
                 updateFolderRowText()
@@ -177,7 +181,7 @@ class NoteEditorActivity : AppCompatActivity() {
 
     private fun applyTypeVisibility() {
         val isChecklist = noteType == Note.TYPE_CHECKLIST
-        binding.bodyInput.visibility = if (isChecklist) View.GONE else View.VISIBLE
+        binding.bodyScroll.visibility = if (isChecklist) View.GONE else View.VISIBLE
         binding.checklistContainer.visibility = if (isChecklist) View.VISIBLE else View.GONE
     }
 
@@ -186,15 +190,23 @@ class NoteEditorActivity : AppCompatActivity() {
         intent.putExtra(ReminderActivity.EXTRA_DUE_DATE, selectedDueDate)
         intent.putExtra(ReminderActivity.EXTRA_REPETITION, selectedRepetition)
         intent.putExtra(ReminderActivity.EXTRA_REPEAT_UNTIL, selectedRepeatUntil)
+        intent.putExtra(ReminderActivity.EXTRA_REMINDER_TIME_MINUTES, selectedReminderTimeMinutes)
         reminderLauncher.launch(intent)
     }
 
     private fun updateReminderRowText() {
         val hasDueDate = selectedDueDate != 0L
-        binding.reminderRow.text = if (!hasDueDate) {
-            getString(R.string.set_reminder)
-        } else {
-            DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(selectedDueDate))
+        binding.reminderRow.text = when {
+            !hasDueDate -> getString(R.string.set_reminder)
+            selectedReminderTimeMinutes >= 0 -> {
+                val dateText = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(selectedDueDate))
+                val timeText = String.format(
+                    java.util.Locale.getDefault(), "%02d:%02d",
+                    selectedReminderTimeMinutes / 60, selectedReminderTimeMinutes % 60
+                )
+                "$dateText, $timeText"
+            }
+            else -> DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(selectedDueDate))
         }
         // Small green dot at the end of the badge marks an active reminder, matching
         // the reference screenshot in imagens/. Set as actual Drawables (rather than by
@@ -340,7 +352,9 @@ class NoteEditorActivity : AppCompatActivity() {
         selectColor(DEFAULT_COLOR_INDEX)
     }
 
-    /** Tints the whole editor (toolbar, background, text) to the selected note color, as in the reference app. */
+    /** Tints only the toolbar/header to the selected note color, as requested -- the rest of the
+     *  editor (body text, checklist) stays on the fixed black background set in the layout, with
+     *  fixed light text, regardless of which note color is picked. */
     private fun selectColor(index: Int) {
         selectedColorIndex = index
         colorRings.forEachIndexed { i, ring ->
@@ -348,26 +362,16 @@ class NoteEditorActivity : AppCompatActivity() {
         }
 
         val colorInt = getColor(NoteColors.colorResFor(index))
-        val textColor = if (NoteColors.isLight(colorInt)) 0xFF1A1A1A.toInt() else 0xFFF5F5F5.toInt()
-        val hintColor = if (NoteColors.isLight(colorInt)) 0x801A1A1A.toInt() else 0x80F5F5F5.toInt()
+        val headerTextColor = if (NoteColors.isLight(colorInt)) 0xFF1A1A1A.toInt() else 0xFFF5F5F5.toInt()
+        val bodyTextColor = getColor(R.color.note_editor_body_text)
 
-        binding.root.setBackgroundColor(colorInt)
         binding.toolbarRoot.setBackgroundColor(colorInt)
-        binding.doneButton.setColorFilter(textColor)
-        binding.overflowButton.setColorFilter(textColor)
+        binding.doneButton.setColorFilter(headerTextColor)
+        binding.overflowButton.setColorFilter(headerTextColor)
         binding.colorToggleButton.backgroundTintList = ColorStateList.valueOf(colorInt)
 
-        binding.bodyInput.setTextColor(textColor)
-        binding.bodyInput.setHintTextColor(hintColor)
-        binding.newItemInput.setTextColor(textColor)
-        binding.newItemInput.setHintTextColor(hintColor)
-        binding.newItemIcon.setColorFilter(hintColor)
-        binding.editingLabel.setTextColor(textColor)
-        binding.reminderRow.setTextColor(textColor)
-        binding.folderRow.setTextColor(textColor)
-        binding.imageRow.setTextColor(textColor)
-        checklistAdapter.setTextColor(textColor)
-        updateReminderRowText() // re-tints the badge's calendar icon to match the new text color
+        checklistAdapter.setTextColor(bodyTextColor)
+        updateReminderRowText() // re-tints the badge's calendar icon to match the header text color
     }
 
     private fun toggleColorRow() {
@@ -381,6 +385,7 @@ class NoteEditorActivity : AppCompatActivity() {
             when (item.itemId) {
                 R.id.action_delete -> { deleteAndFinish(); true }
                 R.id.action_share -> { shareNote(); true }
+                R.id.action_share_image -> { shareNoteAsImage(); true }
                 else -> false
             }
         }
@@ -408,6 +413,7 @@ class NoteEditorActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     repository.delete(existing.id)
                     ReminderNotifier.checkAndNotify(applicationContext)
+                    NoteReminderScheduler.cancel(applicationContext, existing.id)
                 }
             }
             return
@@ -416,40 +422,45 @@ class NoteEditorActivity : AppCompatActivity() {
         rememberLastUsedColor(selectedColorIndex)
 
         lifecycleScope.launch {
+            val saved: Note
             if (existing != null) {
-                repository.update(
-                    existing.copy(
-                        title = title,
-                        body = body,
-                        colorIndex = selectedColorIndex,
-                        type = noteType,
-                        dueDate = selectedDueDate,
-                        repetition = selectedRepetition,
-                        repeatUntil = selectedRepeatUntil,
-                        folderId = selectedFolderId,
-                        imagePath = selectedImagePath,
-                        modifiedDate = System.currentTimeMillis()
-                    )
+                saved = existing.copy(
+                    title = title,
+                    body = body,
+                    colorIndex = selectedColorIndex,
+                    type = noteType,
+                    dueDate = selectedDueDate,
+                    repetition = selectedRepetition,
+                    repeatUntil = selectedRepeatUntil,
+                    reminderTimeMinutes = selectedReminderTimeMinutes,
+                    folderId = selectedFolderId,
+                    imagePath = selectedImagePath,
+                    modifiedDate = System.currentTimeMillis()
                 )
+                repository.update(saved)
             } else {
-                val id = repository.insert(
-                    Note(
-                        title = title,
-                        body = body,
-                        colorIndex = selectedColorIndex,
-                        type = noteType,
-                        dueDate = selectedDueDate,
-                        repetition = selectedRepetition,
-                        repeatUntil = selectedRepeatUntil,
-                        folderId = selectedFolderId,
-                        imagePath = selectedImagePath
-                    )
+                val draft = Note(
+                    title = title,
+                    body = body,
+                    colorIndex = selectedColorIndex,
+                    type = noteType,
+                    dueDate = selectedDueDate,
+                    repetition = selectedRepetition,
+                    repeatUntil = selectedRepeatUntil,
+                    reminderTimeMinutes = selectedReminderTimeMinutes,
+                    folderId = selectedFolderId,
+                    imagePath = selectedImagePath
                 )
-                note = Note(id = id, title = title, body = body, colorIndex = selectedColorIndex, type = noteType)
+                val id = repository.insert(draft)
+                saved = draft.copy(id = id)
+                note = saved
             }
-            // So a note due today shows up in the ongoing notification right away instead of
-            // waiting for the next app open or the 9am alarm.
-            ReminderNotifier.checkAndNotify(applicationContext)
+            // Deliberately not calling ReminderNotifier.checkAndNotify() here: creating/editing
+            // a note shouldn't pop a notification on screen right away, only the scheduled daily
+            // check (or the next app open) should surface it. The note's own exact-time alarm
+            // (if any) is a separate concern and always needs re-scheduling after a save, though,
+            // since the date/time/repetition the alarm depends on may have just changed.
+            NoteReminderScheduler.schedule(applicationContext, saved)
         }
     }
 
@@ -469,6 +480,20 @@ class NoteEditorActivity : AppCompatActivity() {
         startActivity(android.content.Intent.createChooser(intent, getString(R.string.action_share)))
     }
 
+    /** Builds a throwaway [Note] from whatever's currently on screen (title/body/color), same as
+     *  [shareNote] does for its plain-text share -- lets the user share a render of an edit
+     *  they haven't saved yet, not just whatever's already persisted. */
+    private fun shareNoteAsImage() {
+        val title = binding.titleInput.text.toString()
+        val body = if (noteType == Note.TYPE_CHECKLIST) {
+            ChecklistItem.serialize(checklistItems)
+        } else {
+            binding.bodyInput.text.toString()
+        }
+        val draft = Note(title = title, body = body, colorIndex = selectedColorIndex, type = noteType)
+        ShareImageHelper.share(this, draft)
+    }
+
     private fun deleteAndFinish() {
         isDeleting = true
         val existing = note
@@ -476,6 +501,7 @@ class NoteEditorActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 repository.delete(existing.id)
                 ReminderNotifier.checkAndNotify(applicationContext)
+                NoteReminderScheduler.cancel(applicationContext, existing.id)
                 UndoDeleteState.recordDeletion(existing.id)
                 finish()
             }

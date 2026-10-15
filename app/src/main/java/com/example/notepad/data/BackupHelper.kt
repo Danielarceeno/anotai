@@ -22,11 +22,13 @@ object BackupHelper {
                     put("dueDate", note.dueDate)
                     put("repetition", note.repetition)
                     put("repeatUntil", note.repeatUntil)
+                    put("reminderTimeMinutes", note.reminderTimeMinutes)
                     put("completed", note.completed)
                     put("completedDates", note.completedDates)
                     put("pinned", note.pinned)
                     put("imagePath", note.imagePath)
                     put("modifiedDate", note.modifiedDate)
+                    put("uuid", note.uuid)
                 }
             )
         }
@@ -47,11 +49,16 @@ object BackupHelper {
                 dueDate = obj.optLong("dueDate", 0L),
                 repetition = obj.optInt("repetition", Note.REPEAT_NONE),
                 repeatUntil = obj.optLong("repeatUntil", 0L),
+                reminderTimeMinutes = obj.optInt("reminderTimeMinutes", -1),
                 completed = obj.optBoolean("completed", false),
                 completedDates = obj.optString("completedDates", ""),
                 pinned = obj.optBoolean("pinned", false),
                 imagePath = obj.optString("imagePath", ""),
-                modifiedDate = obj.optLong("modifiedDate", System.currentTimeMillis())
+                modifiedDate = obj.optLong("modifiedDate", System.currentTimeMillis()),
+                // Older backups (pre-merge support) won't have a uuid; give each such note its
+                // own random one rather than leaving it blank, so it merges as "new" instead of
+                // every pre-upgrade note colliding on the same empty-string uuid.
+                uuid = obj.optString("uuid").ifBlank { java.util.UUID.randomUUID().toString() }
             )
         }
     } catch (e: Exception) {

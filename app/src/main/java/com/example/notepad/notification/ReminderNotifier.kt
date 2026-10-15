@@ -30,6 +30,11 @@ enum class ReminderCheckResult { NOTHING_DUE, NOTIFIED, PERMISSION_DENIED }
 object ReminderNotifier {
 
     suspend fun checkAndNotify(context: Context): ReminderCheckResult {
+        if (!ReminderPrefs.isEnabled(context)) {
+            NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
+            return ReminderCheckResult.NOTHING_DUE
+        }
+
         val repository = NoteRepository(AppDatabase.getInstance(context).noteDao(), context.applicationContext)
         val todayStart = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
@@ -78,8 +83,25 @@ object ReminderNotifier {
             notes.joinToString("\n") { label(it) }
         }
 
+        // A redacted stand-in shown on a secure lockscreen instead of the real title/body, so a
+        // note's actual content never appears there regardless of the device's own "show full
+        // notification content on lockscreen" setting.
+        val iconColor = ContextCompat.getColor(context, R.color.notification_icon_color)
+
+        val publicVersion = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(iconColor)
+            .setContentTitle(context.getString(R.string.notification_hidden_title))
+            .setContentText(context.getString(R.string.notification_hidden_text))
+            .setOngoing(true)
+            .setContentIntent(contentIntent)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .build()
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
+            .setColor(iconColor)
             .setContentTitle(titleText)
             .setContentText(bigText)
             .setSubText(context.getString(R.string.notification_subtext))
@@ -89,9 +111,15 @@ object ReminderNotifier {
             // since the point is to keep nagging until the day's tasks are actually finished.
             .setOngoing(true)
             .setContentIntent(contentIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            // DEFAULT, not HIGH: shows normally in the shade (with a sound) but never as a
+            // heads-up popup over whatever the user is doing -- heads-up is reserved for
+            // IMPORTANCE_HIGH channels, which this deliberately isn't (see ensureChannel below).
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            // PRIVATE + an explicit publicVersion: the lockscreen never reveals which note this
+            // is or its content, independent of the device's own lockscreen notification setting.
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
             .addAction(
                 0,
                 context.getString(R.string.snooze_action),
@@ -110,16 +138,15 @@ object ReminderNotifier {
         val channel = NotificationChannel(
             CHANNEL_ID,
             context.getString(R.string.notification_channel_name),
-            NotificationManager.IMPORTANCE_HIGH
+            NotificationManager.IMPORTANCE_DEFAULT
         )
         manager.createNotificationChannel(channel)
     }
 
-    // "_v2": channel importance can't be changed in code once a channel exists on a device,
-    // so existing installs need a new channel id to actually get IMPORTANCE_HIGH (needed for the
-    // notification to pop up on screen instead of sitting silently in the shade -- that silent
-    // delivery, confirmed via dumpsys on a real device, was the actual "notification never
-    // shows up" complaint: it WAS arriving, just invisibly).
-    private const val CHANNEL_ID = "daily_reminders_v2"
+    // "_v3": channel importance can't be changed in code once a channel exists on a device, so
+    // dropping from IMPORTANCE_HIGH (v2) to IMPORTANCE_DEFAULT -- normal shade entry with a
+    // sound, no heads-up popup over whatever the user is doing -- needs a new channel id to take
+    // effect for existing installs.
+    private const val CHANNEL_ID = "daily_reminders_v3"
     const val NOTIFICATION_ID = 2001
 }

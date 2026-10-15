@@ -27,6 +27,20 @@
     <color name="toolbar_background">#F5F5F5</color>
     <color name="dialog_background">#FFFFFF</color>
 
+    <!-- Note editor body: only the toolbar/header is tinted to the note's color now, the rest
+         of the editor (text fields, checklist) stays fixed black with light text in both themes. -->
+    <color name="note_editor_body_background">#000000</color>
+    <color name="note_editor_body_text">#F5F5F5</color>
+    <color name="note_editor_body_hint">#80F5F5F5</color>
+    <!-- Checklist row separator: a flat gray, not alpha-blended, since the body background is
+         always black (see above); a faint alpha-over-black divider was invisible in practice. -->
+    <color name="checklist_item_divider">#4D4D4D</color>
+
+    <!-- Daily reminder notification's small-icon tint (NotificationCompat.Builder.setColor): the
+         status bar itself always renders the icon as a flat silhouette regardless of this, but
+         it colors the icon's background circle in the notification shade on most launchers. -->
+    <color name="notification_icon_color">#9E9E9E</color>
+
     <!-- Calendar reminder dot, same hue in both themes (matches the reference screenshots). -->
     <color name="calendar_dot">#F2D43B</color>
     <!-- Thin grid lines between day cells, subtle enough not to compete with the dots/numbers. -->

@@ -1,7 +1,9 @@
 package com.example.notepad.data
 
 import java.util.Calendar
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -107,5 +109,56 @@ class RecurrenceUtilsTest {
         )
         assertTrue(RecurrenceUtils.occursOn(note, dayMillis(2027, Calendar.OCTOBER, 14)))
         assertFalse(RecurrenceUtils.occursOn(note, dayMillis(2027, Calendar.NOVEMBER, 14)))
+    }
+
+    // nextOccurrenceOnOrAfter backs NoteReminderScheduler: it's what finds the next moment to
+    // fire a recurring note's exact-time alarm at, so an off-by-one here means that alarm either
+    // fires on the wrong day or (worse) never gets rescheduled at all.
+
+    @Test
+    fun `next occurrence of a one-time event is its own due date, or null once past`() {
+        val due = dayMillis(2026, Calendar.OCTOBER, 14)
+        val note = Note(title = "t", body = "", dueDate = due, repetition = Note.REPEAT_NONE)
+        assertEquals(due, RecurrenceUtils.nextOccurrenceOnOrAfter(note, due))
+        assertEquals(due, RecurrenceUtils.nextOccurrenceOnOrAfter(note, dayMillis(2026, Calendar.OCTOBER, 10)))
+        assertNull(RecurrenceUtils.nextOccurrenceOnOrAfter(note, dayMillis(2026, Calendar.OCTOBER, 15)))
+    }
+
+    @Test
+    fun `next occurrence of a daily note searching from a later day is that later day`() {
+        val note = Note(
+            title = "t", body = "",
+            dueDate = dayMillis(2026, Calendar.OCTOBER, 14),
+            repetition = Note.REPEAT_DAILY
+        )
+        val from = dayMillis(2026, Calendar.OCTOBER, 20)
+        assertEquals(from, RecurrenceUtils.nextOccurrenceOnOrAfter(note, from))
+    }
+
+    @Test
+    fun `next occurrence of a weekly note skips ahead to the matching day`() {
+        val note = Note(
+            title = "t", body = "",
+            dueDate = dayMillis(2026, Calendar.OCTOBER, 14), // a Wednesday
+            repetition = Note.REPEAT_WEEKLY
+        )
+        // Searching from the very next day should land on the following Wednesday, not that day itself.
+        val searchFrom = dayMillis(2026, Calendar.OCTOBER, 15)
+        assertEquals(dayMillis(2026, Calendar.OCTOBER, 21), RecurrenceUtils.nextOccurrenceOnOrAfter(note, searchFrom))
+    }
+
+    @Test
+    fun `next occurrence respects repeatUntil`() {
+        val note = Note(
+            title = "t", body = "",
+            dueDate = dayMillis(2026, Calendar.OCTOBER, 14),
+            repetition = Note.REPEAT_DAILY,
+            repeatUntil = dayMillis(2026, Calendar.OCTOBER, 16)
+        )
+        assertEquals(
+            dayMillis(2026, Calendar.OCTOBER, 16),
+            RecurrenceUtils.nextOccurrenceOnOrAfter(note, dayMillis(2026, Calendar.OCTOBER, 16))
+        )
+        assertNull(RecurrenceUtils.nextOccurrenceOnOrAfter(note, dayMillis(2026, Calendar.OCTOBER, 17)))
     }
 }

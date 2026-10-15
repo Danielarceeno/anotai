@@ -17,6 +17,7 @@ captures/
 # Signing keys -- never commit these
 *.jks
 *.keystore
+keystore.properties
 
 # Built app packages (install from CI/Releases instead of committing binaries)
 *.apk

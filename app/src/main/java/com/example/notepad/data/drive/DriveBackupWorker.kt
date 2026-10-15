@@ -17,17 +17,17 @@ class DriveBackupWorker(context: Context, params: WorkerParameters) : CoroutineW
     override suspend fun doWork(): Result {
         val account = DriveBackupHelper.lastSignedInAccount(applicationContext) ?: return Result.success()
         return try {
-            val remoteTime = DriveBackupHelper.remoteBackupModifiedTime(applicationContext, account)
-            if (remoteTime != null && remoteTime > DriveBackupHelper.lastSyncedTime(applicationContext)) {
-                // Another device wrote a newer backup since this device last synced. There's no
-                // UI to ask the user which version wins from the background, so skip this round
-                // rather than guessing (silently overwriting would throw that device's notes
-                // away) -- the next manual "back up now" in Settings detects the same conflict
-                // and asks.
-                return Result.success()
-            }
             val repository = NoteRepository(AppDatabase.getInstance(applicationContext).noteDao(), applicationContext)
-            DriveBackupHelper.backup(applicationContext, account, repository.getAllForExport())
+            // Merge (by Note.uuid, newer modifiedDate wins per note) rather than blindly
+            // overwrite: another device may have added or edited notes since this device's last
+            // sync, and this runs unattended with no UI to ask the user which version should win.
+            val local = repository.getAllForExport()
+            val remote = DriveBackupHelper.restore(applicationContext, account)
+            val merged = if (remote != null) DriveBackupHelper.mergeByUuid(local, remote) else local
+            for (note in merged) {
+                if (note.id == 0L) repository.insert(note) else repository.update(note)
+            }
+            DriveBackupHelper.backup(applicationContext, account, merged)
             Result.success()
         } catch (e: Exception) {
             // Transient (network, token refresh, Drive outage) -- WorkManager will retry with

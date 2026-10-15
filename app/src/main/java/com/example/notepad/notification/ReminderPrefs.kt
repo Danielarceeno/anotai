@@ -7,6 +7,7 @@ object ReminderPrefs {
     private const val PREFS_NAME = "reminder_prefs"
     private const val KEY_HOUR = "hour"
     private const val KEY_MINUTE = "minute"
+    private const val KEY_ENABLED = "enabled"
     private const val DEFAULT_HOUR = 9
     private const val DEFAULT_MINUTE = 0
 
@@ -18,6 +19,14 @@ object ReminderPrefs {
 
     fun setTime(context: Context, hour: Int, minute: Int) {
         prefs(context).edit().putInt(KEY_HOUR, hour).putInt(KEY_MINUTE, minute).apply()
+    }
+
+    /** Master on/off switch for reminder notifications, set from Settings. */
+    fun isEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_ENABLED, true)
+
+    fun setEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_ENABLED, enabled).apply()
     }
 
     private fun prefs(context: Context) =

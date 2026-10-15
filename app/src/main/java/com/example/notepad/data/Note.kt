@@ -25,6 +25,12 @@ data class Note(
     /** Epoch millis of the reminder/calendar date, or 0 when the note has none. */
     val dueDate: Long = 0L,
     val repetition: Int = REPEAT_NONE,
+    /** Minutes since midnight for an exact-time reminder (e.g. 870 = 14:30), or -1 for "all day"
+     *  (the default daily 9am catch-all notification is the only thing that covers it). Kept
+     *  separate from [dueDate], which must always stay start-of-day: [RecurrenceUtils] and the
+     *  calendar's day matching both compare [dueDate] for exact equality against another
+     *  start-of-day value. */
+    val reminderTimeMinutes: Int = -1,
     /** Start-of-day millis after which a repeating note stops recurring, or 0 to repeat forever. */
     val repeatUntil: Long = 0L,
     /** Marked done from the calendar day popup; independent of per-item checklist checks.
@@ -37,7 +43,12 @@ data class Note(
     val pinned: Boolean = false,
     /** Absolute path to an attached photo, copied into internal storage, or "" for none. */
     val imagePath: String = "",
-    val modifiedDate: Long = System.currentTimeMillis()
+    val modifiedDate: Long = System.currentTimeMillis(),
+    /** Stable across devices/reinstalls, unlike [id] (which is a local autoincrement and can
+     *  collide between two independently-installed devices). Used to match "the same note" when
+     *  merging a Google Drive backup against this device's own notes -- see
+     *  [com.example.notepad.data.drive.DriveBackupHelper.mergeByUuid]. */
+    val uuid: String = java.util.UUID.randomUUID().toString()
 ) {
     companion object {
         const val ACTIVE = 0

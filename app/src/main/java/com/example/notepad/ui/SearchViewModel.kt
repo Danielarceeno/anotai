@@ -12,8 +12,10 @@ class SearchViewModel(private val repository: NoteRepository) : ViewModel() {
 
     private val query = MutableLiveData("")
 
+    /** With no query typed yet, shows every note (most recent first) instead of an empty list --
+     *  lets this screen double as a full notes browser, not just a filter. */
     val results: LiveData<List<Note>> = query.switchMap { q ->
-        if (q.isBlank()) MutableLiveData(emptyList()) else repository.search(q)
+        if (q.isBlank()) repository.observeAll() else repository.search(q)
     }
 
     val currentQuery: String get() = query.value ?: ""

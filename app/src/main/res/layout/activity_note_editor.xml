@@ -3,6 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/note_editor_body_background"
     android:orientation="vertical">
 
     <!-- Reference design: checkmark / title textbox / color swatch / overflow,
@@ -86,100 +87,123 @@
 
     </HorizontalScrollView>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="12dp"
-        android:paddingTop="12dp">
-
-        <TextView
-            android:id="@+id/editingLabel"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/editing_label"
-            android:textAppearance="?attr/textAppearanceBodyMedium" />
-
-        <TextView
-            android:id="@+id/reminderRow"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/shape_badge_outline"
-            android:drawablePadding="8dp"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="6dp"
-            android:text="@string/set_reminder"
-            android:textColor="?attr/colorPrimary" />
-
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/folderRow"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:drawablePadding="8dp"
-        android:gravity="center_vertical"
-        android:padding="8dp"
-        android:text="@string/folder_none"
-        android:textColor="?attr/colorPrimary"
-        app:drawableStartCompat="@android:drawable/ic_menu_sort_by_size"
-        app:drawableTint="?attr/colorPrimary" />
-
-    <TextView
-        android:id="@+id/imageRow"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:drawablePadding="8dp"
-        android:gravity="center_vertical"
-        android:padding="8dp"
-        android:text="@string/add_photo"
-        android:textColor="?attr/colorPrimary"
-        app:drawableStartCompat="@android:drawable/ic_menu_camera"
-        app:drawableTint="?attr/colorPrimary" />
-
-    <FrameLayout
-        android:id="@+id/imagePreviewContainer"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:layout_marginBottom="8dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/imagePreview"
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:contentDescription="@string/add_photo"
-            android:scaleType="centerCrop" />
-
-        <ImageButton
-            android:id="@+id/removeImageButton"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:layout_gravity="top|end"
-            android:background="@android:color/black"
-            android:contentDescription="@string/action_remove"
-            android:src="@android:drawable/ic_menu_close_clear_cancel" />
-
-    </FrameLayout>
-
-    <EditText
-        android:id="@+id/bodyInput"
+    <!-- Text notes grow like a sheet of paper: bodyInput is wrap_content with a minHeight (not a
+         weighted fill), and this whole column scrolls as one page once the typed text plus the
+         rows above it exceed the screen, instead of only the EditText scrolling internally. -->
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/bodyScroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="@android:color/transparent"
-        android:gravity="top"
-        android:hint="@string/body_hint"
-        android:importantForAutofill="no"
-        android:inputType="textCapSentences|textMultiLine"
-        android:paddingHorizontal="16dp"
-        android:textAppearance="?attr/textAppearanceBodyLarge" />
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp"
+                android:paddingTop="12dp">
+
+                <TextView
+                    android:id="@+id/editingLabel"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/editing_label"
+                    android:textColor="@color/note_editor_body_text"
+                    android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+                <TextView
+                    android:id="@+id/reminderRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/shape_badge_outline"
+                    android:drawablePadding="8dp"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="6dp"
+                    android:text="@string/set_reminder"
+                    android:textColor="?attr/colorPrimary" />
+
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/folderRow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:drawablePadding="8dp"
+                android:gravity="center_vertical"
+                android:padding="8dp"
+                android:text="@string/folder_none"
+                android:textColor="?attr/colorPrimary"
+                app:drawableStartCompat="@android:drawable/ic_menu_sort_by_size"
+                app:drawableTint="?attr/colorPrimary" />
+
+            <TextView
+                android:id="@+id/imageRow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:drawablePadding="8dp"
+                android:gravity="center_vertical"
+                android:padding="8dp"
+                android:text="@string/add_photo"
+                android:textColor="?attr/colorPrimary"
+                app:drawableStartCompat="@android:drawable/ic_menu_camera"
+                app:drawableTint="?attr/colorPrimary" />
+
+            <FrameLayout
+                android:id="@+id/imagePreviewContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginBottom="8dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/imagePreview"
+                    android:layout_width="120dp"
+                    android:layout_height="120dp"
+                    android:contentDescription="@string/add_photo"
+                    android:scaleType="centerCrop" />
+
+                <ImageButton
+                    android:id="@+id/removeImageButton"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="top|end"
+                    android:background="@android:color/black"
+                    android:contentDescription="@string/action_remove"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel" />
+
+            </FrameLayout>
+
+            <EditText
+                android:id="@+id/bodyInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="280dp"
+                android:background="@android:color/transparent"
+                android:gravity="top"
+                android:hint="@string/body_hint"
+                android:importantForAutofill="no"
+                android:inputType="textCapSentences|textMultiLine"
+                android:paddingHorizontal="16dp"
+                android:paddingBottom="24dp"
+                android:textColor="@color/note_editor_body_text"
+                android:textColorHint="@color/note_editor_body_hint"
+                android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
 
     <LinearLayout
         android:id="@+id/checklistContainer"
@@ -214,7 +238,8 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:contentDescription="@null"
-                android:src="@android:drawable/ic_input_add" />
+                android:src="@android:drawable/ic_input_add"
+                app:tint="@color/note_editor_body_hint" />
 
             <EditText
                 android:id="@+id/newItemInput"
@@ -227,6 +252,8 @@
                 android:importantForAutofill="no"
                 android:inputType="text"
                 android:padding="16dp"
+                android:textColor="@color/note_editor_body_text"
+                android:textColorHint="@color/note_editor_body_hint"
                 android:textAppearance="?attr/textAppearanceBodyLarge" />
 
         </LinearLayout>

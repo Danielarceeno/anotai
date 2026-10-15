@@ -24,6 +24,7 @@ import com.example.notepad.data.drive.DriveBackupHelper
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.data.RecurrenceUtils
 import com.example.notepad.databinding.ActivityCalendarBinding
+import com.example.notepad.notification.NoteReminderScheduler
 import com.example.notepad.notification.ReminderNotifier
 import com.example.notepad.notification.ReminderScheduler
 import com.example.notepad.security.LockState
@@ -65,7 +66,7 @@ class CalendarActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (SecurityPrefs.isPinEnabled(this) && !LockState.isUnlockedThisSession) {
+        if (SecurityPrefs.isPinEnabled(this) && LockState.isLocked(this)) {
             startActivity(
                 Intent(this, LockActivity::class.java).putExtra(LockActivity.EXTRA_PENDING_ACTION, intent.action)
             )
@@ -135,6 +136,23 @@ class CalendarActivity : AppCompatActivity() {
         handleShortcutIntent(intent)
     }
 
+    /** Re-checked on every return to this screen, not just on cold start: this is the app's
+     *  `singleTop` launcher activity, so coming back from the background after the auto-lock
+     *  window elapses (see [LockState]) re-enters here via [onResume], not a fresh [onCreate]. */
+    override fun onResume() {
+        super.onResume()
+        if (SecurityPrefs.isPinEnabled(this) && LockState.isLocked(this)) {
+            startActivity(Intent(this, LockActivity::class.java))
+            finish()
+            return
+        }
+        // Covers returning here (singleTop, so this is onResume not onCreate) after creating,
+        // editing or completing a note elsewhere -- e.g. NoteEditorActivity's save deliberately
+        // skips this (see its saveIfNeeded) so creating a note doesn't pop a notification while
+        // you're still in the editor, but coming back to the calendar should still reflect it.
+        runImmediateReminderCheck()
+    }
+
     /** Launcher long-press shortcuts (see res/xml/shortcuts.xml) target this already-PIN-gated
      *  activity with one of these two actions rather than NoteEditorActivity directly, then this
      *  immediately forwards into a blank note of the right type for today. */
@@ -164,7 +182,11 @@ class CalendarActivity : AppCompatActivity() {
                 val cellBinding = ItemCalendarDayBinding.inflate(layoutInflater, row, false)
                 cellBinding.root.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
                 val index = cells.size
-                cellBinding.root.setOnClickListener { currentDays.getOrNull(index)?.let { onDayClicked(it) } }
+                cellBinding.root.setOnClickListener {
+                    // Only days belonging to the displayed month are selectable; the
+                    // faded leading/trailing days from adjacent months are display-only.
+                    currentDays.getOrNull(index)?.let { if (it.inCurrentMonth) onDayClicked(it) }
+                }
                 row.addView(cellBinding.root)
                 cells.add(cellBinding)
             }
@@ -296,6 +318,8 @@ class CalendarActivity : AppCompatActivity() {
             val weekdayColumn = index % 7 // grid always starts on Sunday: see renderMonth()
             cell.dayNumber.text = day.dayOfMonth.toString()
             cell.dayNumber.alpha = if (day.inCurrentMonth) 1f else 0.35f
+            cell.root.isClickable = day.inCurrentMonth
+            cell.root.isEnabled = day.inCurrentMonth
             cell.dayNumber.setTextColor(
                 getColor(
                     when (weekdayColumn) {
@@ -363,10 +387,14 @@ class CalendarActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repository.delete(note.id)
             ReminderNotifier.checkAndNotify(applicationContext)
+            NoteReminderScheduler.cancel(applicationContext, note.id)
         }
         Snackbar.make(binding.root, R.string.note_deleted_message, Snackbar.LENGTH_LONG)
             .setAction(R.string.action_undo) {
-                lifecycleScope.launch { repository.restore(note.id) }
+                lifecycleScope.launch {
+                    repository.restore(note.id)
+                    NoteReminderScheduler.schedule(applicationContext, note)
+                }
             }
             .show()
     }
