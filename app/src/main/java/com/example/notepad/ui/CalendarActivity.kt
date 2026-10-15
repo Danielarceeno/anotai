@@ -34,7 +34,9 @@ import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.launch
 
-data class CalendarDay(val dayOfMonth: Int, val dateMillis: Long, val inCurrentMonth: Boolean, val noteCount: Int)
+/** [dotColorIndices] is capped at 3 (as many dots as the grid cell has room for), one per note
+ *  due that day, each tinted to that note's own color -- see [CalendarActivity.renderDays]. */
+data class CalendarDay(val dayOfMonth: Int, val dateMillis: Long, val inCurrentMonth: Boolean, val dotColorIndices: List<Int>)
 
 /**
  * Monthly grid with a dot under any day that has a note due, mirroring the
@@ -303,7 +305,8 @@ class CalendarActivity : AppCompatActivity() {
                     dayOfMonth = cursor.get(Calendar.DAY_OF_MONTH),
                     dateMillis = dayStart,
                     inCurrentMonth = cursor.get(Calendar.MONTH) == displayedMonth,
-                    noteCount = allReminders.count { RecurrenceUtils.occursOn(it, dayStart) }
+                    dotColorIndices = allReminders.filter { RecurrenceUtils.occursOn(it, dayStart) }
+                        .map { it.colorIndex }.take(3)
                 )
             )
             cursor.add(Calendar.DAY_OF_MONTH, 1)
@@ -330,10 +333,20 @@ class CalendarActivity : AppCompatActivity() {
                 )
             )
             // Up to 3 dots, one per note due that day (reference screenshots show 1-3
-            // small squares stacked for multiple notes rather than a single dot).
+            // small squares stacked for multiple notes rather than a single dot), each tinted
+            // to that note's own color instead of one fixed color for every note.
             val dots = listOf(cell.dot1, cell.dot2, cell.dot3)
             dots.forEachIndexed { dotIndex, dot ->
-                dot.visibility = if (dotIndex < day.noteCount) View.VISIBLE else View.INVISIBLE
+                val colorIndex = day.dotColorIndices.getOrNull(dotIndex)
+                if (colorIndex != null) {
+                    dot.visibility = View.VISIBLE
+                    // mutate() first: the drawable's constant state is otherwise shared across
+                    // every dot inflated from the same @drawable/shape_dot resource, so without
+                    // it tinting one dot would tint all of them.
+                    dot.background.mutate().setTint(getColor(NoteColors.colorResFor(colorIndex)))
+                } else {
+                    dot.visibility = View.INVISIBLE
+                }
             }
         }
     }
