@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <EditText
+        android:id="@+id/newPinInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/enter_pin_hint"
+        android:importantForAutofill="no"
+        android:inputType="numberPassword" />
+
+    <EditText
+        android:id="@+id/confirmPinInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="@string/confirm_pin_hint"
+        android:importantForAutofill="no"
+        android:inputType="numberPassword" />
+
+    <TextView
+        android:id="@+id/pinErrorView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textColor="#E7473C"
+        android:visibility="gone" />
+
+</LinearLayout>

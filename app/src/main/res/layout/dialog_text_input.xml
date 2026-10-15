@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- android:hint is always set at inflation time (see each caller of DialogTextInputBinding),
+     so this is accessible despite having no hint/labelFor in the static XML. -->
+<EditText xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/textInput"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="20dp"
+    android:importantForAutofill="no"
+    android:inputType="textCapSentences"
+    tools:ignore="LabelFor" />

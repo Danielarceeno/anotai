@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_calendar"
+        android:icon="@android:drawable/ic_menu_my_calendar"
+        android:title="@string/menu_calendar"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_search"
+        android:icon="@android:drawable/ic_menu_search"
+        android:title="@string/menu_search"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_folders"
+        android:title="@string/folders_title"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_trash"
+        android:title="@string/trash_title"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_sort"
+        android:title="@string/menu_sort"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_bulk_move"
+        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:title="@string/action_move_to_folder"
+        android:visible="false"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_bulk_delete"
+        android:icon="@android:drawable/ic_menu_delete"
+        android:title="@string/menu_delete"
+        android:visible="false"
+        app:showAsAction="always" />
+</menu>

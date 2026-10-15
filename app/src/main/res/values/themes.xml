@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Colors come from colors.xml / values-night/colors.xml, so this single
+         theme definition covers both light and dark mode automatically. -->
+    <style name="Theme.Notepad" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/accent_teal</item>
+        <item name="colorOnPrimary">@color/on_accent_teal</item>
+        <item name="colorPrimaryContainer">@color/accent_teal</item>
+        <item name="colorOnPrimaryContainer">@color/on_accent_teal</item>
+        <item name="colorSecondary">@color/accent_teal</item>
+        <item name="colorOnSecondary">@color/on_accent_teal</item>
+        <item name="colorSurface">@color/app_surface</item>
+        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
+        <item name="android:colorBackground">@color/app_background</item>
+        <item name="android:statusBarColor">@color/toolbar_background</item>
+    </style>
+</resources>

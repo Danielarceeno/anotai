@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark mode palette, matched to ColorNote's dark theme: near-black
+         background, dark gray toolbar/dialog surfaces, mint/teal accent. -->
+    <color name="accent_teal">#7FCFC2</color>
+    <color name="on_accent_teal">#06201C</color>
+    <color name="app_background">#0D0D0D</color>
+    <color name="app_surface">#1C1C1C</color>
+    <color name="on_surface">#F0F0F0</color>
+    <color name="on_surface_variant">#9AA0A6</color>
+    <color name="toolbar_background">#262626</color>
+    <color name="dialog_background">#262626</color>
+    <color name="calendar_grid_line">#26FFFFFF</color>
+</resources>

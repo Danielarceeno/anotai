@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A white-then-black double ring so the selected color swatch stays visible
+     no matter what color (including the exact swatch hue) sits behind it,
+     since the editor background is now tinted to match the selected color. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <stroke android:width="3dp" android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+    <item android:top="3dp" android:bottom="3dp" android:start="3dp" android:end="3dp">
+        <shape android:shape="oval">
+            <stroke android:width="2dp" android:color="#FF000000" />
+        </shape>
+    </item>
+</layer-list>

@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Anotaí</string>
+    <string name="search_title">Search notes</string>
+    <string name="search_hint">Search your notes</string>
+    <string name="empty_search_results">No notes match &#8220;%1$s&#8221;</string>
+    <string name="menu_search">Search</string>
+    <string name="title_hint">Title</string>
+    <string name="body_hint">Note</string>
+    <string name="save_and_close">Save and close</string>
+    <string name="note_color">Note color</string>
+    <string name="editing_label">Editing</string>
+    <string name="menu_delete">Delete</string>
+    <string name="add_note">Add note</string>
+    <string name="add_item_hint">Add item</string>
+    <string name="set_reminder">Set reminder</string>
+    <string name="menu_calendar">Calendar</string>
+    <string name="menu_notes">Notes</string>
+    <string name="calendar_title">Anotaí</string>
+    <string name="day_notes_add">Add</string>
+    <string name="mark_done">Mark done</string>
+    <string name="previous_month">Previous month</string>
+    <string name="next_month">Next month</string>
+    <string name="action_mark_done">Mark done</string>
+    <string name="action_mark_undone">Mark not done</string>
+    <string name="action_reminder">Reminder</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_pin">Pin to top</string>
+    <string name="menu_sort">Sort</string>
+    <string name="sort_recent">Most recent</string>
+    <string name="sort_color">Color</string>
+    <string name="settings_biometric_title">Unlock with fingerprint</string>
+    <string name="snooze_action">Snooze 1h</string>
+    <string name="add_photo">Add photo</string>
+    <string name="change_photo">Change photo</string>
+    <string name="action_share">Share</string>
+    <string name="note_deleted_message">Note moved to trash</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_move_to_folder">Move to folder</string>
+    <string name="drag_to_reorder">Drag to reorder</string>
+
+    <string name="add_note_dialog_title">Add note</string>
+    <string name="note_type_text">Text</string>
+    <string name="note_type_checklist">Checklist</string>
+    <string name="shortcut_new_text_note">New text note</string>
+    <string name="shortcut_new_checklist_note">New checklist</string>
+
+    <string name="reminder_title">Calendar</string>
+    <string name="reminder_dismiss">Dismiss</string>
+    <string name="reminder_type_label">Type</string>
+    <string name="reminder_type_date">Date</string>
+    <string name="reminder_when_label">When</string>
+    <string name="reminder_when_today">Today</string>
+    <string name="reminder_repetition_label">Repetition</string>
+    <string name="reminder_cancel">Cancel</string>
+    <string name="reminder_done">Done</string>
+    <string name="reminder_repeat_until_label">Repeat until</string>
+    <string name="reminder_repeat_until_never">Never</string>
+    <string name="reminder_repeat_until_pick_date">Pick a date…</string>
+
+    <string name="notification_channel_name">Daily reminders</string>
+    <string name="notification_subtext">Today\'s notes</string>
+    <string name="notifications_disabled_message">Notifications are off, so daily reminders won\'t show</string>
+    <string name="notifications_disabled_action">Enable</string>
+    <string name="battery_optimization_message">Battery optimization may delay or block daily reminders</string>
+    <string name="battery_optimization_action">Fix</string>
+
+    <string name="widget_title">Today — %1$s</string>
+    <string name="widget_empty">No notes for today</string>
+    <string name="widget_description">Shows today\'s notes and reminders on your home screen</string>
+
+    <string name="trash_title">Trash</string>
+    <string name="trash_empty">Trash is empty</string>
+    <string name="trash_restore">Restore</string>
+    <string name="trash_delete_forever">Delete forever</string>
+    <string name="trash_delete_forever_confirm">This note will be permanently deleted. This can\'t be undone.</string>
+    <string name="trash_empty_action">Empty trash</string>
+    <string name="trash_empty_confirm">Permanently delete all notes in the trash? This can\'t be undone.</string>
+
+    <string name="folders_title">Folders</string>
+    <string name="folders_empty">No folders yet</string>
+    <string name="folder_add">Add folder</string>
+    <string name="folder_rename">Rename folder</string>
+    <string name="folder_name_hint">Folder name</string>
+    <string name="folder_delete_confirm">Delete this folder? Its notes will become unfiled, not deleted.</string>
+    <string name="folder_none">No folder</string>
+    <string name="folder_choose">Choose folder</string>
+    <string name="folder_manage">Manage folders…</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_reminder_time_title">Daily reminder time</string>
+    <string name="settings_folders_title">Folders</string>
+    <string name="settings_trash_title">Trash</string>
+    <string name="settings_backup_title">Backup</string>
+    <string name="settings_export_title">Export notes to file</string>
+    <string name="settings_import_title">Import notes from file</string>
+    <string name="settings_drive_backup_title">Google Drive backup</string>
+    <string name="settings_drive_not_signed_in">Sign in with Google</string>
+    <string name="drive_signed_in_as">Signed in as %1$s</string>
+    <string name="drive_backup_now">Back up now</string>
+    <string name="drive_restore">Restore backup</string>
+    <string name="drive_sign_out">Sign out</string>
+    <string name="drive_backup_success">Backed up to Google Drive</string>
+    <string name="drive_backup_failed">Google Drive backup failed</string>
+    <string name="drive_restore_failed">Google Drive restore failed</string>
+    <string name="drive_no_backup_found">No backup found in Google Drive</string>
+    <string name="drive_sign_in_failed">Google sign-in failed</string>
+    <string name="drive_conflict_title">Newer backup found</string>
+    <string name="drive_conflict_message">There\'s a newer backup in Google Drive, probably from another device. Overwriting it now would lose those changes.</string>
+    <string name="drive_conflict_restore">Restore from cloud</string>
+    <string name="drive_conflict_overwrite">Overwrite anyway</string>
+    <string name="settings_security_title">Security</string>
+    <string name="settings_pin_lock_title">Lock app with PIN</string>
+    <string name="settings_change_pin_title">Change PIN</string>
+    <string name="set_pin_title">Set a PIN</string>
+    <string name="enter_pin_hint">4+ digit PIN</string>
+    <string name="confirm_pin_hint">Confirm PIN</string>
+    <string name="pin_mismatch">PINs don\'t match</string>
+    <string name="pin_too_short">PIN must be at least 4 digits</string>
+    <string name="unlock_title">Enter PIN</string>
+    <string name="unlock_action">Unlock</string>
+    <string name="unlock_wrong_pin">Wrong PIN</string>
+    <string name="export_success">Notes exported</string>
+    <string name="export_failed">Export failed</string>
+    <string name="import_failed">Import failed: not a valid backup file</string>
+
+    <plurals name="selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="bulk_delete_confirm">
+        <item quantity="one">Move %1$d note to trash?</item>
+        <item quantity="other">Move %1$d notes to trash?</item>
+    </plurals>
+    <plurals name="import_success">
+        <item quantity="one">%1$d note imported</item>
+        <item quantity="other">%1$d notes imported</item>
+    </plurals>
+
+    <string-array name="repetition_options">
+        <item>One-time event</item>
+        <item>Daily</item>
+        <item>Every weekday (Mon–Fri)</item>
+        <item>Weekly</item>
+        <item>Bi-weekly</item>
+        <item>Monthly</item>
+        <item>Yearly</item>
+    </string-array>
+</resources>

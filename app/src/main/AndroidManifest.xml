@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Notepad">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.SearchActivity"
+            android:exported="true"
+            android:label="@string/search_title"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
+            </intent-filter>
+            <!-- Internal action, mirroring the colornote-specific
+                 "note.socialnmobile.intent.action.SEARCH" found in the
+                 reference APK's manifest: lets other screens in this app
+                 jump straight into search without going through the
+                 system search intent. -->
+            <intent-filter>
+                <action android:name="com.example.notepad.action.SEARCH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.searchable"
+                android:resource="@xml/searchable" />
+        </activity>
+
+        <activity
+            android:name=".ui.NoteEditorActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.CalendarActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:label="@string/calendar_title">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Points to the Search activity, mirroring ColorNote's
+                 android.app.default_searchable wiring so the system
+                 Quick Search Box can target this app. -->
+            <meta-data
+                android:name="android.app.default_searchable"
+                android:value=".ui.SearchActivity" />
+            <!-- Long-press launcher icon shortcuts: New text note / New checklist. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <activity
+            android:name=".ui.ReminderActivity"
+            android:exported="false"
+            android:label="@string/reminder_title" />
+
+        <activity
+            android:name=".ui.TrashActivity"
+            android:exported="false"
+            android:label="@string/trash_title" />
+
+        <activity
+            android:name=".ui.FoldersActivity"
+            android:exported="false"
+            android:label="@string/folders_title" />
+
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false"
+            android:label="@string/settings_title" />
+
+        <activity
+            android:name=".ui.LockActivity"
+            android:exported="false" />
+
+        <receiver
+            android:name=".notification.DailyReminderReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".notification.SnoozeReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".notification.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".widget.TodayNotesWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_notes_info" />
+        </receiver>
+
+        <service
+            android:name=".widget.TodayNotesRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+    </application>
+</manifest>

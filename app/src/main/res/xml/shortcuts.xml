@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the launcher icon to jump straight into a new note, skipping the calendar/FAB
+     tap-through. Both shortcuts target CalendarActivity (not NoteEditorActivity directly) with a
+     custom action it recognizes once its own PIN-lock check passes. NoteEditorActivity has no
+     PIN check of its own and relies entirely on CalendarActivity gating access before
+     navigation, so a shortcut pointing straight at it would bypass the PIN lock. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_text_note"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:shortcutShortLabel="@string/note_type_text"
+        android:shortcutLongLabel="@string/shortcut_new_text_note">
+        <intent
+            android:action="com.example.notepad.action.NEW_TEXT_NOTE"
+            android:targetPackage="com.example.notepad"
+            android:targetClass="com.example.notepad.ui.CalendarActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="new_checklist_note"
+        android:enabled="true"
+        android:icon="@android:drawable/checkbox_on_background"
+        android:shortcutShortLabel="@string/note_type_checklist"
+        android:shortcutLongLabel="@string/shortcut_new_checklist_note">
+        <intent
+            android:action="com.example.notepad.action.NEW_CHECKLIST_NOTE"
+            android:targetPackage="com.example.notepad"
+            android:targetClass="com.example.notepad.ui.CalendarActivity" />
+    </shortcut>
+</shortcuts>

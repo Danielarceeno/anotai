@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/toolbar_background"
+        app:title="@string/calendar_title"
+        app:menu="@menu/menu_calendar" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="4dp">
+
+        <ImageButton
+            android:id="@+id/prevMonthButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/previous_month"
+            android:src="@android:drawable/arrow_up_float"
+            android:rotation="270" />
+
+        <TextView
+            android:id="@+id/monthLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <ImageButton
+            android:id="@+id/nextMonthButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/next_month"
+            android:src="@android:drawable/arrow_up_float"
+            android:rotation="90" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/weekdayRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingVertical="4dp" />
+
+    <!-- Plain weighted rows/cells (no RecyclerView), so the grid's size is resolved by the
+         normal Android layout pass on every single frame, including every intermediate frame of
+         a launcher's window-open animation, instead of needing a second Kotlin-side pass to
+         measure and patch cell heights after the fact, which is what let the grid flash at its
+         small fallback size right after a cold app launch on some devices. -->
+    <com.example.notepad.ui.CalendarGridLayout
+        android:id="@+id/calendarGrid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="0.88"
+        android:orientation="vertical" />
+
+    <!-- Reserves a bit of space below the grid so it reads as "a little smaller than
+         edge-to-edge" rather than filling literally every pixel, per user feedback. -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="0.12" />
+
+    </LinearLayout>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/addNoteButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:contentDescription="@string/add_note"
+        app:srcCompat="@android:drawable/ic_input_add" />
+
+</FrameLayout>
