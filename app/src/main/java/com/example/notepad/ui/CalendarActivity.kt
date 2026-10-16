@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
 
 /** [dotColorIndices] is capped at 3 (as many dots as the grid cell has room for), one per note
  *  due that day, each tinted to that note's own color -- see [CalendarActivity.renderDays]. */
-data class CalendarDay(val dayOfMonth: Int, val dateMillis: Long, val inCurrentMonth: Boolean, val dotColorIndices: List<Int>)
+data class CalendarDay(val dayOfMonth: Int, val dateMillis: Long, val inCurrentMonth: Boolean, val isToday: Boolean, val dotColorIndices: List<Int>)
 
 /**
  * Monthly grid with a dot under any day that has a note due, mirroring the
@@ -59,6 +59,10 @@ class CalendarActivity : AppCompatActivity() {
     private var gridStartCalendar: Calendar = Calendar.getInstance()
     private var displayedMonth: Int = -1
     private var selectedDayMillis: Long = startOfDay(Calendar.getInstance())
+    /** Set from [EXTRA_OPEN_TODAY] (the widget's tap target) on create, and consumed the first
+     *  time [allReminders] arrives -- the day dialog needs that data loaded first, so it can't
+     *  just be shown synchronously in onCreate. */
+    private var pendingOpenToday = false
 
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -126,8 +130,13 @@ class CalendarActivity : AppCompatActivity() {
         repository.observeAllReminders().observe(this, Observer { notes ->
             allReminders = notes
             buildDays()
+            if (pendingOpenToday) {
+                pendingOpenToday = false
+                showDayDialog(startOfDay(Calendar.getInstance()))
+            }
         })
 
+        pendingOpenToday = intent.getBooleanExtra(EXTRA_OPEN_TODAY, false)
         renderMonth()
         handleShortcutIntent(intent)
     }
@@ -135,6 +144,11 @@ class CalendarActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        // Already running (and allReminders already loaded), so this can show the dialog right
+        // away instead of going through the pendingOpenToday/onCreate dance.
+        if (intent.getBooleanExtra(EXTRA_OPEN_TODAY, false)) {
+            showDayDialog(startOfDay(Calendar.getInstance()))
+        }
         handleShortcutIntent(intent)
     }
 
@@ -274,9 +288,43 @@ class CalendarActivity : AppCompatActivity() {
         }
     }
 
+    /** True while [changeMonth]'s slide/fade is mid-flight, so a fast double-tap on the
+     *  prev/next buttons (or a swipe right after one) can't start a second animation that
+     *  stomps on the first one's end action. */
+    private var isAnimatingMonthChange = false
+    // by lazy, not a plain field initializer: Activity field initializers run in the
+    // constructor, before the base Context is attached, so resources is still null there --
+    // this crashed on launch with "Attempt to invoke virtual method ... getResources() on a
+    // null object reference" until deferred to first use (well after onCreate).
+    private val monthSlideDistancePx by lazy { 24 * resources.displayMetrics.density }
+
+    /** Slides the grid out in the direction of travel while fading it, swaps in the new
+     *  month's content at the lowest-opacity point, then slides/fades it back in from the
+     *  opposite side -- a lighter version of a ViewPager page transition, instead of the
+     *  previous instant content swap. */
     private fun changeMonth(delta: Int) {
-        calendar.add(Calendar.MONTH, delta)
-        renderMonth()
+        if (isAnimatingMonthChange) return
+        isAnimatingMonthChange = true
+        val grid = binding.calendarGrid
+        val outDistance = if (delta > 0) -monthSlideDistancePx else monthSlideDistancePx
+        grid.animate()
+            .translationX(outDistance)
+            .alpha(0f)
+            .setDuration(120)
+            .setInterpolator(android.view.animation.AccelerateInterpolator())
+            .withEndAction {
+                calendar.add(Calendar.MONTH, delta)
+                renderMonth()
+                grid.translationX = -outDistance
+                grid.animate()
+                    .translationX(0f)
+                    .alpha(1f)
+                    .setDuration(180)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .withEndAction { isAnimatingMonthChange = false }
+                    .start()
+            }
+            .start()
     }
 
     /** Called only when the displayed month changes: recomputes the grid range. */
@@ -297,6 +345,7 @@ class CalendarActivity : AppCompatActivity() {
     /** Rebuilds the 42 day cells from [gridStartCalendar]/[displayedMonth], expanding [allReminders] via [RecurrenceUtils]. */
     private fun buildDays() {
         val cursor = gridStartCalendar.clone() as Calendar
+        val todayMillis = startOfDay(Calendar.getInstance())
         val days = mutableListOf<CalendarDay>()
         repeat(42) {
             val dayStart = startOfDay(cursor)
@@ -305,6 +354,7 @@ class CalendarActivity : AppCompatActivity() {
                     dayOfMonth = cursor.get(Calendar.DAY_OF_MONTH),
                     dateMillis = dayStart,
                     inCurrentMonth = cursor.get(Calendar.MONTH) == displayedMonth,
+                    isToday = dayStart == todayMillis,
                     dotColorIndices = allReminders.filter { RecurrenceUtils.occursOn(it, dayStart) }
                         .map { it.colorIndex }.take(3)
                 )
@@ -321,6 +371,7 @@ class CalendarActivity : AppCompatActivity() {
             val weekdayColumn = index % 7 // grid always starts on Sunday: see renderMonth()
             cell.dayNumber.text = day.dayOfMonth.toString()
             cell.dayNumber.alpha = if (day.inCurrentMonth) 1f else 0.35f
+            cell.todayIndicator.visibility = if (day.isToday) View.VISIBLE else View.INVISIBLE
             cell.root.isClickable = day.inCurrentMonth
             cell.root.isEnabled = day.inCurrentMonth
             cell.dayNumber.setTextColor(
@@ -433,6 +484,7 @@ class CalendarActivity : AppCompatActivity() {
     companion object {
         private const val PREFS_NAME = "calendar_prefs"
         private const val KEY_BATTERY_PROMPT_SHOWN = "battery_prompt_shown"
+        const val EXTRA_OPEN_TODAY = "open_today"
         private const val ACTION_NEW_TEXT_NOTE = "com.example.notepad.action.NEW_TEXT_NOTE"
         private const val ACTION_NEW_CHECKLIST_NOTE = "com.example.notepad.action.NEW_CHECKLIST_NOTE"
     }

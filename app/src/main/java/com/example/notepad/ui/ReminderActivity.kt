@@ -32,6 +32,7 @@ class ReminderActivity : AppCompatActivity() {
     private var selectedDate: Long = 0L
     private var repeatUntil: Long = 0L
     private var reminderTimeMinutes: Int = -1
+    private var reminderEndTimeMinutes: Int = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +44,7 @@ class ReminderActivity : AppCompatActivity() {
         selectedDate = intent.getLongExtra(EXTRA_DUE_DATE, 0L).takeIf { it != 0L } ?: startOfToday()
         repeatUntil = intent.getLongExtra(EXTRA_REPEAT_UNTIL, 0L)
         reminderTimeMinutes = intent.getIntExtra(EXTRA_REMINDER_TIME_MINUTES, -1)
+        reminderEndTimeMinutes = intent.getIntExtra(EXTRA_REMINDER_END_TIME_MINUTES, -1)
         binding.repetitionSpinner.setSelection(intent.getIntExtra(EXTRA_REPETITION, Note.REPEAT_NONE))
         updateDateButtonText()
         updateTimeButtonText()
@@ -57,6 +59,7 @@ class ReminderActivity : AppCompatActivity() {
                     .putExtra(EXTRA_REPETITION, Note.REPEAT_NONE)
                     .putExtra(EXTRA_REPEAT_UNTIL, 0L)
                     .putExtra(EXTRA_REMINDER_TIME_MINUTES, -1)
+                    .putExtra(EXTRA_REMINDER_END_TIME_MINUTES, -1)
             )
             finish()
         }
@@ -78,6 +81,7 @@ class ReminderActivity : AppCompatActivity() {
                     .putExtra(EXTRA_REPETITION, binding.repetitionSpinner.selectedItemPosition)
                     .putExtra(EXTRA_REPEAT_UNTIL, repeatUntil)
                     .putExtra(EXTRA_REMINDER_TIME_MINUTES, if (selectedDate == 0L) -1 else reminderTimeMinutes)
+                    .putExtra(EXTRA_REMINDER_END_TIME_MINUTES, if (selectedDate == 0L) -1 else reminderEndTimeMinutes)
             )
             finish()
         }
@@ -91,6 +95,7 @@ class ReminderActivity : AppCompatActivity() {
             .setItems(options) { _, which ->
                 if (which == 0) {
                     reminderTimeMinutes = -1
+                    reminderEndTimeMinutes = -1
                     updateTimeButtonText()
                 } else {
                     openTimePicker()
@@ -99,6 +104,9 @@ class ReminderActivity : AppCompatActivity() {
             .show()
     }
 
+    /** Picks the window's start time, then immediately chains into [openEndTimePicker] for its
+     *  end -- e.g. "9 until 5pm" so the notification only fires while the time of day falls
+     *  inside that range (see [com.example.notepad.notification.ReminderNotifier]). */
     private fun openTimePicker() {
         val initialHour = if (reminderTimeMinutes >= 0) reminderTimeMinutes / 60 else 9
         val initialMinute = if (reminderTimeMinutes >= 0) reminderTimeMinutes % 60 else 0
@@ -106,7 +114,7 @@ class ReminderActivity : AppCompatActivity() {
             this,
             { _, hour, minute ->
                 reminderTimeMinutes = hour * 60 + minute
-                updateTimeButtonText()
+                openEndTimePicker()
             },
             initialHour,
             initialMinute,
@@ -114,11 +122,33 @@ class ReminderActivity : AppCompatActivity() {
         ).show()
     }
 
+    private fun openEndTimePicker() {
+        val initialHour = if (reminderEndTimeMinutes >= 0) reminderEndTimeMinutes / 60 else 17
+        val initialMinute = if (reminderEndTimeMinutes >= 0) reminderEndTimeMinutes % 60 else 0
+        TimePickerDialog(
+            this,
+            { _, hour, minute ->
+                val end = hour * 60 + minute
+                // An end time at/before the start isn't a valid window -- treat it as "no end"
+                // (a single-instant reminder) instead of silently never firing.
+                reminderEndTimeMinutes = if (end > reminderTimeMinutes) end else -1
+                updateTimeButtonText()
+            },
+            initialHour,
+            initialMinute,
+            true
+        ).apply { setTitle(getString(R.string.reminder_time_end_prompt)) }.show()
+    }
+
     private fun updateTimeButtonText() {
-        binding.timeButton.text = if (reminderTimeMinutes < 0) {
-            getString(R.string.reminder_time_all_day)
-        } else {
-            String.format(Locale.getDefault(), "%02d:%02d", reminderTimeMinutes / 60, reminderTimeMinutes % 60)
+        binding.timeButton.text = when {
+            reminderTimeMinutes < 0 -> getString(R.string.reminder_time_all_day)
+            reminderEndTimeMinutes >= 0 -> String.format(
+                Locale.getDefault(), "%02d:%02d – %02d:%02d",
+                reminderTimeMinutes / 60, reminderTimeMinutes % 60,
+                reminderEndTimeMinutes / 60, reminderEndTimeMinutes % 60
+            )
+            else -> String.format(Locale.getDefault(), "%02d:%02d", reminderTimeMinutes / 60, reminderTimeMinutes % 60)
         }
     }
 
@@ -230,5 +260,6 @@ class ReminderActivity : AppCompatActivity() {
         const val EXTRA_REPETITION = "repetition"
         const val EXTRA_REPEAT_UNTIL = "repeat_until"
         const val EXTRA_REMINDER_TIME_MINUTES = "reminder_time_minutes"
+        const val EXTRA_REMINDER_END_TIME_MINUTES = "reminder_end_time_minutes"
     }
 }

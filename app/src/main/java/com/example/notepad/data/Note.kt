@@ -31,6 +31,11 @@ data class Note(
      *  calendar's day matching both compare [dueDate] for exact equality against another
      *  start-of-day value. */
     val reminderTimeMinutes: Int = -1,
+    /** End of the reminder window, minutes since midnight (e.g. 1020 = 17:00), or -1 when the
+     *  reminder is just a single instant rather than a range. Only meaningful alongside
+     *  [reminderTimeMinutes] >= 0: the notification is only shown while the current time of day
+     *  falls within [reminderTimeMinutes]..this -- see [com.example.notepad.notification.ReminderNotifier]. */
+    val reminderEndTimeMinutes: Int = -1,
     /** Start-of-day millis after which a repeating note stops recurring, or 0 to repeat forever. */
     val repeatUntil: Long = 0L,
     /** Marked done from the calendar day popup; independent of per-item checklist checks.

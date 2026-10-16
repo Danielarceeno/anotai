@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Checked (done): hollow outline, since the title's own strikethrough already signals
+         completion. A filled circle is reserved for "still pending" below. -->
+    <item android:state_checked="true" android:drawable="@drawable/shape_note_toggle_done" />
+    <item android:drawable="@drawable/shape_note_toggle_pending" />
+</selector>

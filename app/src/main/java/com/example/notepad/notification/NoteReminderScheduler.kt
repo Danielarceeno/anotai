@@ -27,13 +27,21 @@ object NoteReminderScheduler {
         val todayStart = startOfToday()
         var day = RecurrenceUtils.nextOccurrenceOnOrAfter(note, todayStart) ?: return
         var trigger = day + note.reminderTimeMinutes * 60_000L
-        if (trigger <= System.currentTimeMillis()) {
-            // Today's exact time has already passed (or this is today's occurrence being saved
-            // after that time) -- jump to the occurrence after today rather than firing for a
-            // moment that's already gone.
-            val oneDayMillis = 24 * 60 * 60 * 1000L
-            day = RecurrenceUtils.nextOccurrenceOnOrAfter(note, todayStart + oneDayMillis) ?: return
-            trigger = day + note.reminderTimeMinutes * 60_000L
+        val now = System.currentTimeMillis()
+        if (trigger <= now) {
+            // Start time has already passed (or this is today's occurrence being saved after
+            // that time). If an end time was set and it hasn't passed yet, the reminder window
+            // is still open today -- fire right away instead of waiting for tomorrow. Otherwise
+            // jump to the occurrence after today rather than firing for a moment that's gone.
+            val endMinutes = if (note.reminderEndTimeMinutes >= 0) note.reminderEndTimeMinutes else note.reminderTimeMinutes
+            val endTrigger = day + endMinutes * 60_000L
+            if (endTrigger > now) {
+                trigger = now
+            } else {
+                val oneDayMillis = 24 * 60 * 60 * 1000L
+                day = RecurrenceUtils.nextOccurrenceOnOrAfter(note, todayStart + oneDayMillis) ?: return
+                trigger = day + note.reminderTimeMinutes * 60_000L
+            }
         }
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager

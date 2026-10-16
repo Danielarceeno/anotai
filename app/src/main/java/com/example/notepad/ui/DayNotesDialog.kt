@@ -1,7 +1,6 @@
 package com.example.notepad.ui
 
 import android.content.Context
-import android.content.res.ColorStateList
 import android.graphics.Paint
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -57,18 +56,27 @@ object DayNotesDialog {
 
         val rowPadding = (10 * context.resources.displayMetrics.density).toInt()
         val dotSize = (14 * context.resources.displayMetrics.density).toInt()
+        val toggleSize = (22 * context.resources.displayMetrics.density).toInt()
+        val barWidth = (4 * context.resources.displayMetrics.density).toInt()
 
         notes.forEach { note ->
+            // Reference screenshots (imagens/imagem1.jpg, imagem2.jpg): a color bar flush
+            // against the dialog's left edge for the note's own color, instead of a small
+            // swatch inline with the title.
+            val rowOuter = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val colorBar = android.view.View(context).apply {
+                layoutParams = LinearLayout.LayoutParams(barWidth, LinearLayout.LayoutParams.MATCH_PARENT)
+                setBackgroundColor(context.getColor(NoteColors.colorResFor(note.colorIndex)))
+            }
+
             val row = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, rowPadding, 0, rowPadding)
-            }
-
-            val dot = android.widget.ImageView(context).apply {
-                layoutParams = LinearLayout.LayoutParams(dotSize, dotSize)
-                setBackgroundResource(R.drawable.shape_color_swatch)
-                backgroundTintList = ColorStateList.valueOf(context.getColor(NoteColors.colorResFor(note.colorIndex)))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setPadding(rowPadding, rowPadding, 0, rowPadding)
             }
 
             val isDoneToday = RecurrenceUtils.isCompletedOn(note, dayMillis)
@@ -85,14 +93,18 @@ object DayNotesDialog {
                         NoteFormatting.plainText(note.body, note.isFormatted).take(40)
                     }
                 }
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    marginStart = rowPadding
-                }
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
                 applyCompletedStyle(this, isDoneToday)
             }
 
+            // A plain round toggle (filled = pending, hollow = done) instead of the default
+            // square CheckBox widget, matching the reference screenshots' lime-green circles.
             val doneCheckBox = CheckBox(context).apply {
+                layoutParams = LinearLayout.LayoutParams(toggleSize, toggleSize).apply { marginEnd = rowPadding }
+                text = null
+                background = null
+                buttonDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.selector_note_done_toggle)
                 isChecked = isDoneToday
                 contentDescription = context.getString(R.string.mark_done)
                 setOnCheckedChangeListener { _, isChecked ->
@@ -115,7 +127,6 @@ object DayNotesDialog {
                 }
             }
 
-            content.addView(dot)
             content.addView(title)
             if (note.repetition != Note.REPEAT_NONE) {
                 val repeatIcon = android.widget.ImageView(context).apply {
@@ -128,7 +139,9 @@ object DayNotesDialog {
             }
             row.addView(content)
             row.addView(doneCheckBox)
-            binding.notesContainer.addView(row)
+            rowOuter.addView(colorBar)
+            rowOuter.addView(row)
+            binding.notesContainer.addView(rowOuter)
 
             if (note.type == Note.TYPE_CHECKLIST) {
                 addChecklistItemRows(context, binding.notesContainer, note, rowPadding, dotSize, onToggleChecklistItem)

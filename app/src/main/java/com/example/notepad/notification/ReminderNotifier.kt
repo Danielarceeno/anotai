@@ -40,8 +40,12 @@ object ReminderNotifier {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
+        val nowMinutes = Calendar.getInstance().let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
         val notesToday = repository.getAllReminders()
-            .filter { RecurrenceUtils.occursOn(it, todayStart) && !RecurrenceUtils.isCompletedOn(it, todayStart) }
+            .filter {
+                RecurrenceUtils.occursOn(it, todayStart) && !RecurrenceUtils.isCompletedOn(it, todayStart) &&
+                    isWithinReminderWindow(it, nowMinutes)
+            }
         if (notesToday.isEmpty()) {
             // Nothing left to do today: drop the ongoing notification instead of leaving it
             // stuck forever, e.g. right after the last note of the day gets marked done.
@@ -50,6 +54,15 @@ object ReminderNotifier {
         }
 
         return showNotification(context, notesToday)
+    }
+
+    /** Only a note with an explicit end time (a range, e.g. 9am-5pm) is restricted to showing
+     *  while the current time of day falls inside it. "All day" (-1) and a plain single-instant
+     *  reminder (a start time but no end) keep the existing behavior of showing all day once
+     *  due, unaffected by what time it currently is. */
+    private fun isWithinReminderWindow(note: Note, nowMinutes: Int): Boolean {
+        if (note.reminderEndTimeMinutes < 0) return true
+        return nowMinutes in note.reminderTimeMinutes..note.reminderEndTimeMinutes
     }
 
     fun isNotificationPermissionGranted(context: Context): Boolean =

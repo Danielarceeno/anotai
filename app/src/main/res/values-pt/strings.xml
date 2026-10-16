@@ -68,7 +68,8 @@
     <string name="reminder_when_specific_date">Data específica…</string>
     <string name="reminder_time_label">Horário</string>
     <string name="reminder_time_all_day">Dia inteiro</string>
-    <string name="reminder_time_pick">Escolher um horário…</string>
+    <string name="reminder_time_pick">Escolher um intervalo…</string>
+    <string name="reminder_time_end_prompt">Até que horas?</string>
     <string name="reminder_repetition_label">Repetição</string>
     <string name="reminder_cancel">Cancelar</string>
     <string name="reminder_done">Concluído</string>

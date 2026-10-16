@@ -64,19 +64,15 @@
          a launcher's window-open animation, instead of needing a second Kotlin-side pass to
          measure and patch cell heights after the fact, which is what let the grid flash at its
          small fallback size right after a cold app launch on some devices. -->
+    <!-- Fills the rest of the screen: the FAB floats above it (bottom|end) and is allowed to
+         overlap the last row's day cells, per user feedback: the grid itself should reach the
+         bottom of the screen rather than leaving a reserved empty strip below it. -->
     <com.example.notepad.ui.CalendarGridLayout
         android:id="@+id/calendarGrid"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="0.88"
+        android:layout_weight="1"
         android:orientation="vertical" />
-
-    <!-- Reserves a bit of space below the grid so it reads as "a little smaller than
-         edge-to-edge" rather than filling literally every pixel, per user feedback. -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="0.12" />
 
     </LinearLayout>
 

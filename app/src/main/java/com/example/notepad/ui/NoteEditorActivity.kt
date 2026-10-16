@@ -47,12 +47,16 @@ class NoteEditorActivity : AppCompatActivity() {
 
     private var note: Note? = null
     private var isDeleting = false
+    /** Guards saveIfNeeded() against firing twice close together (see its own comment) --
+     *  true from the moment a save/delete coroutine is launched until it finishes. */
+    private var saveInFlight = false
     private var selectedColorIndex = 0
     private var noteType = Note.TYPE_TEXT
     private var selectedDueDate = 0L
     private var selectedRepetition = Note.REPEAT_NONE
     private var selectedRepeatUntil = 0L
     private var selectedReminderTimeMinutes = -1
+    private var selectedReminderEndTimeMinutes = -1
     private var selectedFolderId = 0L
     private var selectedImagePath = ""
     private val colorSwatches = mutableListOf<ImageView>()
@@ -79,6 +83,7 @@ class NoteEditorActivity : AppCompatActivity() {
         selectedRepetition = data.getIntExtra(ReminderActivity.EXTRA_REPETITION, Note.REPEAT_NONE)
         selectedRepeatUntil = data.getLongExtra(ReminderActivity.EXTRA_REPEAT_UNTIL, 0L)
         selectedReminderTimeMinutes = data.getIntExtra(ReminderActivity.EXTRA_REMINDER_TIME_MINUTES, -1)
+        selectedReminderEndTimeMinutes = data.getIntExtra(ReminderActivity.EXTRA_REMINDER_END_TIME_MINUTES, -1)
         updateReminderRowText()
     }
 
@@ -100,7 +105,12 @@ class NoteEditorActivity : AppCompatActivity() {
         binding.removeImageButton.setOnClickListener { removeImage() }
 
         binding.doneButton.setOnClickListener {
-            saveIfNeeded()
+            // Not calling saveIfNeeded() here: finish() below triggers onPause(), which already
+            // calls it -- calling it both here and from onPause() raced two saveIfNeeded()
+            // invocations against each other (both would still see the not-yet-assigned `note`
+            // as null before the first one's async insert finished), inserting the same new note
+            // twice. onPause() alone is both necessary and sufficient, for every way this screen
+            // can go away (done button, back press, home button, switching apps).
             finish()
         }
         binding.colorToggleContainer.setOnClickListener { toggleColorRow() }
@@ -110,7 +120,9 @@ class NoteEditorActivity : AppCompatActivity() {
         binding.underlineButton.setOnClickListener { NoteFormatting.toggleUnderline(binding.bodyInput) }
 
         onBackPressedDispatcher.addCallback(this) {
-            saveIfNeeded()
+            // See the doneButton listener above: onPause() (triggered once the back press
+            // actually finishes this activity, below) already calls saveIfNeeded() -- an
+            // explicit call here too was the other half of the same double-insert race.
             isEnabled = false
             onBackPressedDispatcher.onBackPressed()
         }
@@ -130,6 +142,7 @@ class NoteEditorActivity : AppCompatActivity() {
                 selectedRepetition = note?.repetition ?: Note.REPEAT_NONE
                 selectedRepeatUntil = note?.repeatUntil ?: 0L
                 selectedReminderTimeMinutes = note?.reminderTimeMinutes ?: -1
+                selectedReminderEndTimeMinutes = note?.reminderEndTimeMinutes ?: -1
                 selectedFolderId = note?.folderId ?: 0L
                 selectedImagePath = note?.imagePath ?: ""
                 updateFolderRowText()
@@ -194,6 +207,7 @@ class NoteEditorActivity : AppCompatActivity() {
         intent.putExtra(ReminderActivity.EXTRA_REPETITION, selectedRepetition)
         intent.putExtra(ReminderActivity.EXTRA_REPEAT_UNTIL, selectedRepeatUntil)
         intent.putExtra(ReminderActivity.EXTRA_REMINDER_TIME_MINUTES, selectedReminderTimeMinutes)
+        intent.putExtra(ReminderActivity.EXTRA_REMINDER_END_TIME_MINUTES, selectedReminderEndTimeMinutes)
         reminderLauncher.launch(intent)
     }
 
@@ -203,10 +217,18 @@ class NoteEditorActivity : AppCompatActivity() {
             !hasDueDate -> getString(R.string.set_reminder)
             selectedReminderTimeMinutes >= 0 -> {
                 val dateText = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(selectedDueDate))
-                val timeText = String.format(
-                    java.util.Locale.getDefault(), "%02d:%02d",
-                    selectedReminderTimeMinutes / 60, selectedReminderTimeMinutes % 60
-                )
+                val timeText = if (selectedReminderEndTimeMinutes >= 0) {
+                    String.format(
+                        java.util.Locale.getDefault(), "%02d:%02d – %02d:%02d",
+                        selectedReminderTimeMinutes / 60, selectedReminderTimeMinutes % 60,
+                        selectedReminderEndTimeMinutes / 60, selectedReminderEndTimeMinutes % 60
+                    )
+                } else {
+                    String.format(
+                        java.util.Locale.getDefault(), "%02d:%02d",
+                        selectedReminderTimeMinutes / 60, selectedReminderTimeMinutes % 60
+                    )
+                }
                 "$dateText, $timeText"
             }
             else -> DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(selectedDueDate))
@@ -401,7 +423,12 @@ class NoteEditorActivity : AppCompatActivity() {
     }
 
     private fun saveIfNeeded() {
-        if (isDeleting) return
+        // Belt-and-suspenders alongside removing the duplicate call sites above: `note` is only
+        // assigned once the async insert below actually completes, so two saveIfNeeded() calls
+        // close enough together (there used to be exactly this: an explicit call immediately
+        // followed by finish() triggering onPause()'s call) would both still see `existing` as
+        // null and both insert a brand new row for what the user meant as one note.
+        if (isDeleting || saveInFlight) return
         val title = binding.titleInput.text.toString()
         val isFormatted: Boolean
         val body: String
@@ -418,10 +445,15 @@ class NoteEditorActivity : AppCompatActivity() {
 
         if (isEmpty) {
             if (existing != null) {
+                saveInFlight = true
                 lifecycleScope.launch {
-                    repository.delete(existing.id)
-                    ReminderNotifier.checkAndNotify(applicationContext)
-                    NoteReminderScheduler.cancel(applicationContext, existing.id)
+                    try {
+                        repository.delete(existing.id)
+                        ReminderNotifier.checkAndNotify(applicationContext)
+                        NoteReminderScheduler.cancel(applicationContext, existing.id)
+                    } finally {
+                        saveInFlight = false
+                    }
                 }
             }
             return
@@ -429,48 +461,55 @@ class NoteEditorActivity : AppCompatActivity() {
 
         rememberLastUsedColor(selectedColorIndex)
 
+        saveInFlight = true
         lifecycleScope.launch {
-            val saved: Note
-            if (existing != null) {
-                saved = existing.copy(
-                    title = title,
-                    body = body,
-                    isFormatted = isFormatted,
-                    colorIndex = selectedColorIndex,
-                    type = noteType,
-                    dueDate = selectedDueDate,
-                    repetition = selectedRepetition,
-                    repeatUntil = selectedRepeatUntil,
-                    reminderTimeMinutes = selectedReminderTimeMinutes,
-                    folderId = selectedFolderId,
-                    imagePath = selectedImagePath,
-                    modifiedDate = System.currentTimeMillis()
-                )
-                repository.update(saved)
-            } else {
-                val draft = Note(
-                    title = title,
-                    body = body,
-                    isFormatted = isFormatted,
-                    colorIndex = selectedColorIndex,
-                    type = noteType,
-                    dueDate = selectedDueDate,
-                    repetition = selectedRepetition,
-                    repeatUntil = selectedRepeatUntil,
-                    reminderTimeMinutes = selectedReminderTimeMinutes,
-                    folderId = selectedFolderId,
-                    imagePath = selectedImagePath
-                )
-                val id = repository.insert(draft)
-                saved = draft.copy(id = id)
-                note = saved
+            try {
+                val saved: Note
+                if (existing != null) {
+                    saved = existing.copy(
+                        title = title,
+                        body = body,
+                        isFormatted = isFormatted,
+                        colorIndex = selectedColorIndex,
+                        type = noteType,
+                        dueDate = selectedDueDate,
+                        repetition = selectedRepetition,
+                        repeatUntil = selectedRepeatUntil,
+                        reminderTimeMinutes = selectedReminderTimeMinutes,
+                        reminderEndTimeMinutes = selectedReminderEndTimeMinutes,
+                        folderId = selectedFolderId,
+                        imagePath = selectedImagePath,
+                        modifiedDate = System.currentTimeMillis()
+                    )
+                    repository.update(saved)
+                } else {
+                    val draft = Note(
+                        title = title,
+                        body = body,
+                        isFormatted = isFormatted,
+                        colorIndex = selectedColorIndex,
+                        type = noteType,
+                        dueDate = selectedDueDate,
+                        repetition = selectedRepetition,
+                        repeatUntil = selectedRepeatUntil,
+                        reminderTimeMinutes = selectedReminderTimeMinutes,
+                        reminderEndTimeMinutes = selectedReminderEndTimeMinutes,
+                        folderId = selectedFolderId,
+                        imagePath = selectedImagePath
+                    )
+                    val id = repository.insert(draft)
+                    saved = draft.copy(id = id)
+                    note = saved
+                }
+                // Deliberately not calling ReminderNotifier.checkAndNotify() here: creating/editing
+                // a note shouldn't pop a notification on screen right away, only the scheduled daily
+                // check (or the next app open) should surface it. The note's own exact-time alarm
+                // (if any) is a separate concern and always needs re-scheduling after a save, though,
+                // since the date/time/repetition the alarm depends on may have just changed.
+                NoteReminderScheduler.schedule(applicationContext, saved)
+            } finally {
+                saveInFlight = false
             }
-            // Deliberately not calling ReminderNotifier.checkAndNotify() here: creating/editing
-            // a note shouldn't pop a notification on screen right away, only the scheduled daily
-            // check (or the next app open) should surface it. The note's own exact-time alarm
-            // (if any) is a separate concern and always needs re-scheduling after a save, though,
-            // since the date/time/repetition the alarm depends on may have just changed.
-            NoteReminderScheduler.schedule(applicationContext, saved)
         }
     }
 

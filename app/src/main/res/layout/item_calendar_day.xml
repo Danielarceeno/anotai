@@ -66,4 +66,15 @@
         android:layout_gravity="end"
         android:background="@color/calendar_grid_line" />
 
+    <!-- Drawn last so it sits on top of the grid lines above: a border around the whole cell
+         (not just the day number) marking today, matching user feedback that a small circle
+         around the number alone was too subtle. -->
+    <View
+        android:id="@+id/todayIndicator"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="2dp"
+        android:background="@drawable/shape_today_outline"
+        android:visibility="invisible" />
+
 </FrameLayout>

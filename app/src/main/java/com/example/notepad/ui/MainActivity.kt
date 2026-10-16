@@ -1,12 +1,18 @@
 package com.example.notepad.ui
 
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.activity.addCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
@@ -19,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * Notes list, reached from [CalendarActivity] (the app's launcher) via its "Notes" menu item.
@@ -40,6 +47,87 @@ class MainActivity : AppCompatActivity() {
     private var originalTitle: CharSequence = ""
     private val sortModeFlow = MutableStateFlow(0)
 
+    /** Swipe a card left or right to trash it immediately (with the same undo snackbar as the
+     *  bulk-delete path), matching the reference app's swipe-to-delete gesture. Disabled while
+     *  in selection mode ([getSwipeDirs] returns 0 then) so a swipe can't fight with a long-press
+     *  selection drag. Deliberately never calls notifyItemRemoved/notifyItemChanged on [adapter]
+     *  itself -- see the itemAnimator/confirmBulkDelete comments above for why a manual notify
+     *  racing Room's own PagingData emission was what caused the earlier RecyclerView crash;
+     *  the swiped-out row just disappears on its own once that emission lands.
+     */
+    // by lazy, not a plain field initializer: Activity field initializers run in the
+    // constructor, before the base Context is attached, so ContextCompat.getDrawable(this, ...)
+    // below would hit a null getResources() -- the exact crash CalendarActivity's
+    // monthSlideDistancePx field hit earlier for the same reason. Deferred to first access
+    // (onCreate's attachToRecyclerView call), well after the Context is attached.
+    private val swipeToDeleteHelper by lazy { ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+        0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
+    ) {
+        private val deleteIcon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_delete)?.apply {
+            setTint(Color.WHITE)
+        }
+        private val background = ColorDrawable(Color.parseColor("#D32F2F"))
+
+        override fun getSwipeDirs(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int =
+            if (selectedIds.isNotEmpty()) 0 else super.getSwipeDirs(recyclerView, viewHolder)
+
+        override fun onMove(
+            recyclerView: RecyclerView,
+            viewHolder: RecyclerView.ViewHolder,
+            target: RecyclerView.ViewHolder
+        ): Boolean = false
+
+        override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+            val position = viewHolder.bindingAdapterPosition
+            if (position == RecyclerView.NO_POSITION) return
+            adapter.peek(position)?.let { deleteNoteWithUndo(it) }
+        }
+
+        override fun onChildDraw(
+            c: Canvas,
+            recyclerView: RecyclerView,
+            viewHolder: RecyclerView.ViewHolder,
+            dX: Float,
+            dY: Float,
+            actionState: Int,
+            isCurrentlyActive: Boolean
+        ) {
+            super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+            if (actionState != ItemTouchHelper.ACTION_STATE_SWIPE) return
+            val item = viewHolder.itemView
+            background.setBounds(item.left, item.top, item.right, item.bottom)
+            background.draw(c)
+
+            val iconMargin = (item.height - (deleteIcon?.intrinsicHeight ?: 0)) / 2
+            val iconTop = item.top + iconMargin
+            val iconBottom = iconTop + (deleteIcon?.intrinsicHeight ?: 0)
+            deleteIcon?.let { icon ->
+                val iconWidth = icon.intrinsicWidth
+                if (dX > 0) {
+                    icon.setBounds(item.left + iconMargin, iconTop, item.left + iconMargin + iconWidth, iconBottom)
+                } else if (dX < 0) {
+                    icon.setBounds(item.right - iconMargin - iconWidth, iconTop, item.right - iconMargin, iconBottom)
+                }
+                if (abs(dX) > iconMargin) icon.draw(c)
+            }
+        }
+    }) }
+
+    private fun deleteNoteWithUndo(note: Note) {
+        lifecycleScope.launch {
+            repository.delete(note.id)
+            com.example.notepad.notification.NoteReminderScheduler.cancel(this@MainActivity, note.id)
+        }
+        Snackbar.make(binding.root, R.string.note_deleted_message, Snackbar.LENGTH_LONG)
+            .setAction(R.string.action_undo) {
+                lifecycleScope.launch {
+                    repository.restore(note.id)
+                    repository.getById(note.id)?.let { com.example.notepad.notification.NoteReminderScheduler.schedule(this@MainActivity, it) }
+                }
+            }
+            .show()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -59,6 +147,13 @@ class MainActivity : AppCompatActivity() {
         )
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
+        // Paging3's own AsyncPagingDataDiffer dispatches its own granular notify calls as pages
+        // load/change; RecyclerView's default item animator doing its predictive-layout pass on
+        // top of that was crashing with "Inconsistency detected. Invalid view holder adapter
+        // position" right after a delete (a second PagingData generation landing mid-animation).
+        // No animations on this list is an acceptable trade-off for not crashing.
+        binding.recyclerView.itemAnimator = null
+        swipeToDeleteHelper.attachToRecyclerView(binding.recyclerView)
 
         sortModeFlow.value = NotesSortPrefs.getSortMode(this)
         lifecycleScope.launch {
@@ -172,7 +267,11 @@ class MainActivity : AppCompatActivity() {
                         repository.delete(it)
                         com.example.notepad.notification.NoteReminderScheduler.cancel(this@MainActivity, it)
                     }
-                    adapter.refresh()
+                    // No explicit adapter.refresh() here: Room already invalidates the paged
+                    // query on delete, so the list's own collectLatest picks it up. Calling
+                    // refresh() too raced a second PagingData generation against that automatic
+                    // one and was the proximate cause of the RecyclerView "Inconsistency
+                    // detected" crash right after deleting.
                 }
                 clearSelection()
             }

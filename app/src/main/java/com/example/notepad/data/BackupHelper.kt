@@ -24,6 +24,7 @@ object BackupHelper {
                     put("repetition", note.repetition)
                     put("repeatUntil", note.repeatUntil)
                     put("reminderTimeMinutes", note.reminderTimeMinutes)
+                    put("reminderEndTimeMinutes", note.reminderEndTimeMinutes)
                     put("completed", note.completed)
                     put("completedDates", note.completedDates)
                     put("pinned", note.pinned)
@@ -52,6 +53,7 @@ object BackupHelper {
                 repetition = obj.optInt("repetition", Note.REPEAT_NONE),
                 repeatUntil = obj.optLong("repeatUntil", 0L),
                 reminderTimeMinutes = obj.optInt("reminderTimeMinutes", -1),
+                reminderEndTimeMinutes = obj.optInt("reminderEndTimeMinutes", -1),
                 completed = obj.optBoolean("completed", false),
                 completedDates = obj.optString("completedDates", ""),
                 pinned = obj.optBoolean("pinned", false),
