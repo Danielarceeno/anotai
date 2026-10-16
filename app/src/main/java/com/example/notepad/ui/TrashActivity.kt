@@ -27,7 +27,8 @@ class TrashActivity : AppCompatActivity() {
         binding = ActivityTrashBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        repository = NoteRepository(AppDatabase.getInstance(this).noteDao(), applicationContext)
+        val db = AppDatabase.getInstance(this)
+        repository = NoteRepository(db.noteDao(), applicationContext, db.noteTombstoneDao())
 
         binding.toolbar.setNavigationOnClickListener { finish() }
         binding.toolbar.setOnMenuItemClickListener { item ->

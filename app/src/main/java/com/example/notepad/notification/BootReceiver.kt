@@ -19,7 +19,8 @@ class BootReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val repository = NoteRepository(AppDatabase.getInstance(context).noteDao(), context)
+                val db = AppDatabase.getInstance(context)
+                val repository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())
                 repository.getAllReminders()
                     .filter { it.reminderTimeMinutes >= 0 }
                     .forEach { NoteReminderScheduler.schedule(context, it) }

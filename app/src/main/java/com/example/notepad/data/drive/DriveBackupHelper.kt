@@ -78,8 +78,17 @@ object DriveBackupHelper {
      * the matching local row's [Note.id] substituted in, so applying the result locally is a plain
      * update instead of a delete-and-reinsert; a uuid that doesn't exist locally yet keeps its
      * (local-storage-absent) `id = 0`, which the caller inserts as a new row.
+     *
+     * [local] only ever contains *active* notes ([com.example.notepad.data.NoteRepository
+     * .getAllForExport]), so a note this device trashed looks identical here to one it never
+     * had at all -- without [tombstones] (uuid -> when it was deleted, from
+     * [com.example.notepad.data.NoteRepository.getTombstones]) a deleted note's remote copy would
+     * get merged back in as "remote-only" on every single backup, forever. A tombstoned uuid is
+     * dropped from the remote-only set unless the remote copy was modified *after* the deletion
+     * (someone else is still actively using that note), in which case it still wins through, same
+     * as any other newer-edit-wins conflict here.
      */
-    fun mergeByUuid(local: List<Note>, remote: List<Note>): List<Note> {
+    fun mergeByUuid(local: List<Note>, remote: List<Note>, tombstones: Map<String, Long> = emptyMap()): List<Note> {
         val remoteByUuid = remote.associateBy { it.uuid }
         val merged = local.map { localNote ->
             val remoteNote = remoteByUuid[localNote.uuid] ?: return@map localNote
@@ -89,7 +98,10 @@ object DriveBackupHelper {
         // A remote-only note's `id` is some *other* device's local row id -- meaningless (and
         // potentially collision-prone) here, so it's reset to 0 like any other not-yet-inserted
         // Note, consistent with what a remote-wins match above already does via .copy(id = ...).
-        val remoteOnly = remote.filter { it.uuid !in localUuids }.map { it.copy(id = 0L) }
+        val remoteOnly = remote
+            .filter { it.uuid !in localUuids }
+            .filterNot { note -> tombstones[note.uuid]?.let { it >= note.modifiedDate } == true }
+            .map { it.copy(id = 0L) }
         return merged + remoteOnly
     }
 

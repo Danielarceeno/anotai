@@ -11,10 +11,11 @@ import kotlinx.coroutines.runBlocking
 import net.sqlcipher.database.SQLiteDatabase
 import net.sqlcipher.database.SupportFactory
 
-@Database(entities = [Note::class, Folder::class], version = 11, exportSchema = false)
+@Database(entities = [Note::class, Folder::class, NoteTombstone::class], version = 12, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun folderDao(): FolderDao
+    abstract fun noteTombstoneDao(): NoteTombstoneDao
 
     companion object {
         @Volatile
@@ -66,6 +67,28 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds the tombstone table (see [NoteTombstone]'s doc for why Drive backup needs it),
+         *  and backfills one tombstone per note already sitting in the trash -- otherwise a note
+         *  trashed before this update, with no tombstone recorded for it, would still get
+         *  resurrected by the very next Drive merge. [Note.modifiedDate] is the best available
+         *  stand-in for "when it was deleted" for that backfill (trashing a note doesn't bump it
+         *  today, but it's never older than the actual deletion, so it only risks losing to a
+         *  genuinely newer remote edit -- the same safe-ish fallback a missing timestamp would
+         *  get anyway). */
+        private val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `note_tombstones` (`uuid` TEXT NOT NULL, `deletedAt` INTEGER NOT NULL, PRIMARY KEY(`uuid`))"
+                )
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO note_tombstones (uuid, deletedAt)
+                    SELECT uuid, modifiedDate FROM notes WHERE activeState = ${Note.TRASHED}
+                    """
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: buildDatabase(context.applicationContext).also { instance = it }
@@ -82,7 +105,7 @@ abstract class AppDatabase : RoomDatabase() {
 
             return Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
                 .openHelperFactory(SupportFactory(SQLiteDatabase.getBytes(passphrase)))
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .fallbackToDestructiveMigration()
                 .build()
         }
@@ -110,7 +133,7 @@ abstract class AppDatabase : RoomDatabase() {
                 dbFile.copyTo(context.getDatabasePath(legacyName), overwrite = true)
 
                 val legacyDb = Room.databaseBuilder(context, AppDatabase::class.java, legacyName)
-                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                     .fallbackToDestructiveMigration()
                     .build()
                 val (folders, notes) = runBlocking {

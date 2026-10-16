@@ -92,7 +92,8 @@ class CalendarActivity : AppCompatActivity() {
             DriveBackupHelper.schedulePeriodicBackup(this)
         }
 
-        repository = NoteRepository(AppDatabase.getInstance(this).noteDao(), applicationContext)
+        val db = AppDatabase.getInstance(this)
+        repository = NoteRepository(db.noteDao(), applicationContext, db.noteTombstoneDao())
 
         buildWeekdayHeader()
         buildCalendarGrid()

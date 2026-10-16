@@ -35,7 +35,8 @@ object ReminderNotifier {
             return ReminderCheckResult.NOTHING_DUE
         }
 
-        val repository = NoteRepository(AppDatabase.getInstance(context).noteDao(), context.applicationContext)
+        val db = AppDatabase.getInstance(context)
+        val repository = NoteRepository(db.noteDao(), context.applicationContext, db.noteTombstoneDao())
         val todayStart = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis

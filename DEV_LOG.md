@@ -6,6 +6,85 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 4 — Drive backup resurrecting deleted notes (2026-10-16)
+
+User report: "quando faço backup agora pelo celular, ele volta com coisas que
+já exclui" (after backing up/restoring via Google Drive, notes already
+deleted on the phone come back).
+
+### Root cause
+`DriveBackupHelper.mergeByUuid(local, remote)` only ever compares *active*
+notes on the local side (`NoteRepository.getAllForExport()` filters out
+trashed ones). So the moment a note is trashed, its uuid vanishes from
+`local` entirely -- to the merge, a just-deleted note and a genuinely new
+note only Drive has look identical ("uuid present only in `remote`"), and
+both get unioned back in by `applyMergedNotes`. Worse, the merged result is
+then **written back to Drive**, so the deleted note gets re-saved into the
+backup file too -- every subsequent backup/restore kept resurrecting it, not
+just the first one. This was already called out as a known limitation in the
+README ("Drive sync... never deletes"), but it turned out to bite a single
+device, not just two devices syncing -- deleting a note and then just backing
+up the same phone was enough to see it come back.
+
+### Fix: tombstones
+Added `NoteTombstone(uuid, deletedAt)` (new Room table, migration 11→12,
+`NoteTombstoneDao`). `NoteRepository.delete(id)` now records a tombstone for
+that note's uuid; `NoteRepository.restore(id)` (undo from Trash) clears it
+again, since an explicit restore means the user wants it back. `mergeByUuid`
+gained a `tombstones: Map<String, Long>` parameter (default empty, so old
+call sites/tests still compile): a remote-only note whose uuid is tombstoned
+is dropped from the merge *unless* the remote copy's `modifiedDate` is newer
+than the deletion -- i.e. someone (possibly this same device, on another
+day) genuinely edited it after the deletion, which should still win through,
+same as any other newer-edit-wins conflict in this function.
+
+The migration also **backfills a tombstone for every note already sitting in
+the trash** at upgrade time (using `modifiedDate` as a stand-in for "when it
+was deleted," since trashing doesn't bump that field today) -- otherwise
+notes trashed before this fix shipped would still have resurrected once more
+after the first post-fix backup.
+
+All three places that merge against Drive now pass `repository.getTombstones()`
+through: `SettingsActivity`'s manual "back up now" and "restore backup"
+flows, and `DriveBackupWorker`'s unattended periodic background backup (the
+one place this user likely hit without even opening Settings).
+
+`NoteRepository`'s constructor gained a required third parameter
+(`NoteTombstoneDao`) -- every call site across the app (`MainActivity`,
+`CalendarActivity`, `NoteEditorActivity`, `SearchActivity`,
+`SettingsActivity`, `TrashActivity`, `ReminderNotifier`,
+`NoteReminderReceiver`, `BootReceiver`, `DriveBackupWorker`) was updated to
+pass `AppDatabase.getInstance(...).noteTombstoneDao()`.
+
+### Verification
+- Unit tests added to `DriveBackupHelperTest`: a tombstoned note is dropped
+  from the merge; a remote edit made *after* the deletion still wins through;
+  an unrelated tombstone doesn't affect anything. All pass, plus the full
+  existing suite + lint.
+- Installed the new build **over** the emulator's existing (pre-fix, DB
+  version 11, with a real trashed note in it) install to actually exercise
+  `MIGRATION_11_12` on real data instead of just a fresh install: no crash,
+  no `SQLiteException` in logcat, app opened normally post-migration
+  (including past the PIN lock screen, confirming the migration didn't
+  corrupt unrelated tables either).
+- **Not verified end-to-end against real Drive**: this environment has no
+  Google Cloud OAuth client registered for the debug build's signing
+  certificate (see `DriveBackupHelper`'s own doc comment -- sign-in would
+  fail with a developer-facing error, not something fixable from inside the
+  app or this session). The fix is verified at the unit level (the exact
+  function that was wrong) and via the migration smoke test above; the user
+  should confirm on their own signed-in device that a deleted note no longer
+  comes back after "Back up now".
+
+### Files touched
+`data/NoteTombstone.kt` (new), `data/NoteTombstoneDao.kt` (new),
+`data/AppDatabase.kt` (migration 11→12), `data/NoteRepository.kt`,
+`data/drive/DriveBackupHelper.kt`, `data/drive/DriveBackupWorker.kt`,
+`ui/SettingsActivity.kt`, plus the constructor-signature ripple through every
+other `NoteRepository(...)` call site listed above.
+
+---
+
 ## Session 3 — Swipe-to-delete, resizable widget, full test pass (2026-10-16)
 
 ### Added

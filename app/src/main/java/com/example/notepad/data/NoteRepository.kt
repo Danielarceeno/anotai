@@ -16,7 +16,11 @@ import kotlinx.coroutines.flow.Flow
  * caller that changes a note gets that refresh for free instead of having to
  * remember to call [TodayNotesWidgetProvider.notifyNotesChanged] itself.
  */
-class NoteRepository(private val dao: NoteDao, private val appContext: Context) {
+class NoteRepository(
+    private val dao: NoteDao,
+    private val appContext: Context,
+    private val tombstoneDao: NoteTombstoneDao
+) {
 
     fun observeAll(): LiveData<List<Note>> = dao.observeAll()
 
@@ -53,15 +57,32 @@ class NoteRepository(private val dao: NoteDao, private val appContext: Context) 
         TodayNotesWidgetProvider.notifyNotesChanged(appContext)
     }
 
+    /** Also records a tombstone for this note's uuid -- see [NoteTombstone]'s doc -- so a
+     *  Drive backup merge doesn't resurrect it: [getAllForExport] (the merge's "local" side)
+     *  only returns active notes, so without a tombstone a just-trashed note's uuid looks
+     *  exactly like a brand new note only Drive has. */
     suspend fun delete(id: Long) {
+        val uuid = dao.getById(id)?.uuid
         dao.delete(id)
+        if (uuid != null) tombstoneDao.insert(NoteTombstone(uuid, System.currentTimeMillis()))
         TodayNotesWidgetProvider.notifyNotesChanged(appContext)
     }
 
+    /** Clears the tombstone (if any) too: an explicit restore means the user wants this note
+     *  back, so it should sync normally again instead of the next Drive merge treating it as
+     *  still-deleted. */
     suspend fun restore(id: Long) {
+        val uuid = dao.getById(id)?.uuid
         dao.restore(id)
+        if (uuid != null) tombstoneDao.delete(uuid)
         TodayNotesWidgetProvider.notifyNotesChanged(appContext)
     }
+
+    /** uuid -> when it was deleted, for [com.example.notepad.data.drive.DriveBackupHelper
+     *  .mergeByUuid] to tell "locally deleted on purpose" apart from "a genuinely new note only
+     *  the remote backup has". */
+    suspend fun getTombstones(): Map<String, Long> =
+        tombstoneDao.getAll().associate { it.uuid to it.deletedAt }
 
     suspend fun deleteForever(id: Long) {
         deleteImageFile(dao.getById(id))

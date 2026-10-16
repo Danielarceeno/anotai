@@ -134,7 +134,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         val db = AppDatabase.getInstance(this)
-        repository = NoteRepository(db.noteDao(), applicationContext)
+        repository = NoteRepository(db.noteDao(), applicationContext, db.noteTombstoneDao())
         folderRepository = FolderRepository(db.folderDao(), db.noteDao())
         folderId = intent.getLongExtra(EXTRA_FOLDER_ID, 0L)
         intent.getStringExtra(EXTRA_FOLDER_NAME)?.let { binding.toolbar.title = it }

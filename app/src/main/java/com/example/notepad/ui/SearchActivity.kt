@@ -38,7 +38,8 @@ class SearchActivity : AppCompatActivity() {
         binding = ActivitySearchBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        repository = NoteRepository(AppDatabase.getInstance(this).noteDao(), applicationContext)
+        val db = AppDatabase.getInstance(this)
+        repository = NoteRepository(db.noteDao(), applicationContext, db.noteTombstoneDao())
         viewModel = ViewModelProvider(this, SearchViewModel.Factory(repository))[SearchViewModel::class.java]
 
         adapter = NoteAdapter(

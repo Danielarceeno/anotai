@@ -22,7 +22,8 @@ class NoteReminderReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 ReminderNotifier.checkAndNotify(context)
-                val repository = NoteRepository(AppDatabase.getInstance(context).noteDao(), context)
+                val db = AppDatabase.getInstance(context)
+                val repository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())
                 repository.getById(noteId)?.let { NoteReminderScheduler.schedule(context, it) }
             } finally {
                 pendingResult.finish()

@@ -17,13 +17,18 @@ class DriveBackupWorker(context: Context, params: WorkerParameters) : CoroutineW
     override suspend fun doWork(): Result {
         val account = DriveBackupHelper.lastSignedInAccount(applicationContext) ?: return Result.success()
         return try {
-            val repository = NoteRepository(AppDatabase.getInstance(applicationContext).noteDao(), applicationContext)
+            val db = AppDatabase.getInstance(applicationContext)
+            val repository = NoteRepository(db.noteDao(), applicationContext, db.noteTombstoneDao())
             // Merge (by Note.uuid, newer modifiedDate wins per note) rather than blindly
             // overwrite: another device may have added or edited notes since this device's last
             // sync, and this runs unattended with no UI to ask the user which version should win.
             val local = repository.getAllForExport()
             val remote = DriveBackupHelper.restore(applicationContext, account)
-            val merged = if (remote != null) DriveBackupHelper.mergeByUuid(local, remote) else local
+            val merged = if (remote != null) {
+                DriveBackupHelper.mergeByUuid(local, remote, repository.getTombstones())
+            } else {
+                local
+            }
             for (note in merged) {
                 if (note.id == 0L) repository.insert(note) else repository.update(note)
             }

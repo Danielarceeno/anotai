@@ -50,7 +50,8 @@ class SettingsActivity : AppCompatActivity() {
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        repository = NoteRepository(AppDatabase.getInstance(this).noteDao(), applicationContext)
+        val db = AppDatabase.getInstance(this)
+        repository = NoteRepository(db.noteDao(), applicationContext, db.noteTombstoneDao())
 
         binding.toolbar.setNavigationOnClickListener { finish() }
 
@@ -306,7 +307,11 @@ class SettingsActivity : AppCompatActivity() {
             try {
                 val local = repository.getAllForExport()
                 val remote = DriveBackupHelper.restore(applicationContext, account)
-                val merged = if (remote != null) DriveBackupHelper.mergeByUuid(local, remote) else local
+                val merged = if (remote != null) {
+                    DriveBackupHelper.mergeByUuid(local, remote, repository.getTombstones())
+                } else {
+                    local
+                }
                 applyMergedNotes(merged)
                 DriveBackupHelper.backup(applicationContext, account, merged)
                 Toast.makeText(this@SettingsActivity, R.string.drive_backup_success, Toast.LENGTH_SHORT).show()
@@ -327,7 +332,7 @@ class SettingsActivity : AppCompatActivity() {
                     return@launch
                 }
                 val local = repository.getAllForExport()
-                val merged = DriveBackupHelper.mergeByUuid(local, remote)
+                val merged = DriveBackupHelper.mergeByUuid(local, remote, repository.getTombstones())
                 applyMergedNotes(merged)
                 DriveBackupHelper.backup(applicationContext, account, merged)
                 val added = merged.size - local.size

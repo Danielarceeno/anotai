@@ -97,7 +97,7 @@ class NoteEditorActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         val db = AppDatabase.getInstance(this)
-        repository = NoteRepository(db.noteDao(), applicationContext)
+        repository = NoteRepository(db.noteDao(), applicationContext, db.noteTombstoneDao())
         folderRepository = FolderRepository(db.folderDao(), db.noteDao())
 
         binding.folderRow.setOnClickListener { showFolderPicker() }

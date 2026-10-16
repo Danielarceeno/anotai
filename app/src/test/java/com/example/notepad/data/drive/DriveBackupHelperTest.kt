@@ -68,4 +68,43 @@ class DriveBackupHelperTest {
         assertEquals(setOf("local-only", "remote-only", "shared"), uuids)
         assertTrue(merged.size == 3)
     }
+
+    // --- Tombstones: a note trashed locally doesn't come back from the next backup/restore. ---
+    // `local` only ever contains active notes (see NoteRepository.getAllForExport), so without a
+    // tombstone a just-deleted note's uuid looked exactly like a brand new remote-only note.
+
+    @Test
+    fun `a tombstoned note is not resurrected from the remote backup`() {
+        val remote = listOf(note("deleted-note", id = 99, modifiedDate = 100))
+        val tombstones = mapOf("deleted-note" to 200L) // deleted after that remote copy's edit
+
+        val merged = DriveBackupHelper.mergeByUuid(local = emptyList(), remote, tombstones)
+
+        assertTrue(merged.isEmpty())
+    }
+
+    @Test
+    fun `a remote edit made after the local deletion still wins`() {
+        // Someone else edited the note on another device after this device deleted it --
+        // that's a real, newer change the user doesn't know happened, so it should come back,
+        // same as any other newer-edit-wins conflict.
+        val remote = listOf(note("edited-after-deletion", id = 99, modifiedDate = 500))
+        val tombstones = mapOf("edited-after-deletion" to 100L)
+
+        val merged = DriveBackupHelper.mergeByUuid(local = emptyList(), remote, tombstones)
+
+        assertEquals(1, merged.size)
+        assertEquals("edited-after-deletion", merged.single().uuid)
+    }
+
+    @Test
+    fun `a tombstone for an unrelated uuid doesn't affect anything`() {
+        val remote = listOf(note("still-fine", id = 99, modifiedDate = 100))
+        val tombstones = mapOf("some-other-note" to 999L)
+
+        val merged = DriveBackupHelper.mergeByUuid(local = emptyList(), remote, tombstones)
+
+        assertEquals(1, merged.size)
+        assertEquals("still-fine", merged.single().uuid)
+    }
 }
