@@ -1,6 +1,7 @@
 package com.example.notepad.ui
 
 import android.annotation.SuppressLint
+import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -97,10 +98,12 @@ class CalendarActivity : AppCompatActivity() {
 
         buildWeekdayHeader()
         buildCalendarGrid()
-        binding.calendarGrid.onSwipe = { next -> changeMonth(if (next) 1 else -1) }
+        binding.calendarGrid.onSwipe = { next, vertical -> changeMonth(if (next) 1 else -1, vertical) }
+        binding.calendarGrid.verticalSwipeEnabled = CalendarPrefs.isVerticalSwipeEnabled(this)
 
         binding.prevMonthButton.setOnClickListener { changeMonth(-1) }
         binding.nextMonthButton.setOnClickListener { changeMonth(1) }
+        binding.monthLabel.setOnClickListener { showMonthPicker() }
 
         binding.addNoteButton.setOnClickListener {
             AddNoteTypeDialog.show(
@@ -168,6 +171,8 @@ class CalendarActivity : AppCompatActivity() {
         // skips this (see its saveIfNeeded) so creating a note doesn't pop a notification while
         // you're still in the editor, but coming back to the calendar should still reflect it.
         runImmediateReminderCheck()
+        // Re-read in case the user just flipped it in Settings and came straight back here.
+        binding.calendarGrid.verticalSwipeEnabled = CalendarPrefs.isVerticalSwipeEnabled(this)
     }
 
     /** Launcher long-press shortcuts (see res/xml/shortcuts.xml) target this already-PIN-gated
@@ -302,30 +307,58 @@ class CalendarActivity : AppCompatActivity() {
     /** Slides the grid out in the direction of travel while fading it, swaps in the new
      *  month's content at the lowest-opacity point, then slides/fades it back in from the
      *  opposite side -- a lighter version of a ViewPager page transition, instead of the
-     *  previous instant content swap. */
-    private fun changeMonth(delta: Int) {
+     *  previous instant content swap. [vertical] picks the axis: a vertical swipe (only
+     *  reachable when [CalendarPrefs.isVerticalSwipeEnabled]) animates top/bottom instead of the
+     *  usual left/right, matching whichever direction the user actually swiped. */
+    private fun changeMonth(delta: Int, vertical: Boolean = false) {
         if (isAnimatingMonthChange) return
         isAnimatingMonthChange = true
         val grid = binding.calendarGrid
         val outDistance = if (delta > 0) -monthSlideDistancePx else monthSlideDistancePx
-        grid.animate()
-            .translationX(outDistance)
+        val outAnimator = grid.animate()
             .alpha(0f)
             .setDuration(120)
             .setInterpolator(android.view.animation.AccelerateInterpolator())
+        if (vertical) outAnimator.translationY(outDistance) else outAnimator.translationX(outDistance)
+        outAnimator
             .withEndAction {
                 calendar.add(Calendar.MONTH, delta)
                 renderMonth()
-                grid.translationX = -outDistance
-                grid.animate()
-                    .translationX(0f)
+                if (vertical) grid.translationY = -outDistance else grid.translationX = -outDistance
+                val inAnimator = grid.animate()
                     .alpha(1f)
                     .setDuration(180)
                     .setInterpolator(android.view.animation.DecelerateInterpolator())
-                    .withEndAction { isAnimatingMonthChange = false }
-                    .start()
+                if (vertical) inAnimator.translationY(0f) else inAnimator.translationX(0f)
+                inAnimator.withEndAction { isAnimatingMonthChange = false }.start()
             }
             .start()
+    }
+
+    /** Tapping the "October 2026" label jumps straight to any day: a plain system date picker,
+     *  defaulting to whatever day is currently selected, that both moves the grid to that month
+     *  and opens that day's dialog -- a shortcut past however many swipes/taps it'd otherwise
+     *  take to get to a date months away. No slide animation here (unlike [changeMonth]): a
+     *  jump isn't a swipe in either direction, so there's no natural axis to animate along. */
+    private fun showMonthPicker() {
+        val initial = Calendar.getInstance().apply { timeInMillis = selectedDayMillis }
+        DatePickerDialog(
+            this,
+            { _, year, month, dayOfMonth ->
+                calendar.set(Calendar.YEAR, year)
+                calendar.set(Calendar.MONTH, month)
+                calendar.set(Calendar.DAY_OF_MONTH, 1)
+                renderMonth()
+                val picked = Calendar.getInstance().apply {
+                    set(year, month, dayOfMonth, 0, 0, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                showDayDialog(picked.timeInMillis)
+            },
+            initial.get(Calendar.YEAR),
+            initial.get(Calendar.MONTH),
+            initial.get(Calendar.DAY_OF_MONTH)
+        ).show()
     }
 
     /** Called only when the displayed month changes: recomputes the grid range. */

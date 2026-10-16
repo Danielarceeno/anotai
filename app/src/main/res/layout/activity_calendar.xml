@@ -39,6 +39,11 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:gravity="center"
+            android:paddingVertical="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackground"
+            android:contentDescription="@string/pick_date"
             android:textAppearance="?attr/textAppearanceTitleMedium" />
 
         <ImageButton

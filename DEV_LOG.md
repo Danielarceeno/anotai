@@ -6,6 +6,66 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 5 — Calendar date picker + configurable swipe axis (2026-10-16)
+
+User request: tapping the month label should jump straight to a chosen day;
+month-change swipe should be left/right only by default, with up/down swipe
+as an opt-in Settings toggle that also gets its own (vertical) animation.
+
+### Added
+- **Tapping "October 2026"** opens a plain `DatePickerDialog` (defaulting to
+  whatever day is currently selected) and, on confirmation, both moves the
+  grid to that month and opens that day's dialog in one step -- a shortcut
+  past however many swipes/taps it'd otherwise take to reach a date months
+  away. `monthLabel` got a ripple background + `contentDescription` so it
+  reads as tappable.
+- **`CalendarPrefs`** (new, same `SharedPreferences` file as the existing
+  battery-prompt flag): `isVerticalSwipeEnabled`/`setVerticalSwipeEnabled`,
+  off by default.
+- **`CalendarGridLayout`** now gates vertical swipes behind a
+  `verticalSwipeEnabled` property instead of always treating up/down the
+  same as left/right: with it off, a vertical drag isn't even intercepted
+  (falls through as a no-op, doesn't eat the touch for nothing), and
+  `onSwipe` now reports which axis triggered it (`(next: Boolean, vertical:
+  Boolean) -> Unit`) so the caller can animate along the same axis the user
+  actually swiped.
+- **Settings** gained a "Swipe up/down to change month" switch (Appearance
+  section, above Reminder notifications) wired to `CalendarPrefs`.
+  `CalendarActivity` reads it on both `onCreate` and `onResume` (the latter
+  so flipping it in Settings and coming straight back applies immediately).
+- `changeMonth`'s slide/fade animation now takes a `vertical` flag and
+  animates `translationY` instead of `translationX` when the vertical axis
+  triggered it; prev/next buttons and the date-picker jump stay horizontal
+  (buttons always `vertical = false`; the picker jump has no swipe
+  direction to animate along at all, so it's an instant re-render, same as
+  it already was before this session).
+
+### Verification
+- Manual pass on the emulator: date picker opens at the right default day,
+  jumping to a month 2+ away both re-renders the grid *and* opens that day's
+  dialog correctly, no crash.
+- Horizontal swipe still works both directions post-change.
+- Vertical swipe correctly does nothing with the setting off (confirmed by
+  swiping and seeing the month unchanged).
+- Vertical swipe correctly changes the month both directions once the
+  Settings toggle is turned on (confirmed after returning to the calendar,
+  exercising the new `onResume` re-read).
+- **One test-script false alarm worth recording**: the first vertical-swipe
+  attempt (300ms duration via `adb shell input swipe`) appeared to do
+  nothing and briefly looked like a bug. It wasn't -- a 150ms swipe over the
+  same distance worked immediately. `adb`'s synthetic swipe needs to be fast
+  enough to clear `GestureDetector`'s fling velocity threshold; a slower
+  "swipe" can clear the distance threshold but not the velocity one and so
+  never fires `onFling` at all. Noted here (and in the testing-notes section
+  below) so this isn't re-diagnosed as an app bug next time.
+
+### Files touched
+`ui/CalendarGridLayout.kt`, `ui/CalendarActivity.kt`, `ui/CalendarPrefs.kt`
+(new), `ui/SettingsActivity.kt`, `res/layout/activity_calendar.xml`,
+`res/layout/activity_settings.xml`, `res/values(-pt)/strings.xml`.
+
+---
+
 ## Session 4 — Drive backup resurrecting deleted notes (2026-10-16)
 
 User report: "quando faço backup agora pelo celular, ele volta com coisas que
@@ -243,3 +303,9 @@ re-proposed from scratch next time.)
   on the Pixel Launcher (see Session 3 note above) — don't sink time into it
   past one or two attempts; verify widget code by review + build instead, and
   ask the user to eyeball the real placement if it matters.
+- `adb shell input swipe x1 y1 x2 y2 <duration>` needs a short enough
+  duration to actually register as a fling (not just a drag) with
+  `GestureDetector` — 300ms over ~1000px was silently ignored where 150ms
+  over the same distance worked immediately (see Session 5). If a swipe
+  gesture that should trigger something visibly does nothing, try a shorter
+  duration before concluding it's an app bug.

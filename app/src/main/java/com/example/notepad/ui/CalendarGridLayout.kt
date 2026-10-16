@@ -18,16 +18,24 @@ import kotlin.math.abs
  *
  * Lower thresholds than a generic fling detector (half the distance, ~40% of the velocity) so a
  * normal-paced swipe changes the month right away instead of needing an exaggerated flick.
- * Horizontal swipes move between months (left = next, right = previous), and vertical ones do
- * the same (up = next, down = previous), so either direction works.
+ * Horizontal swipes (left = next, right = previous) always change the month, matching the
+ * reference app; vertical swipes only do the same when [verticalSwipeEnabled] is turned on from
+ * Settings (see [CalendarPrefs]) -- off by default, since up/down fighting with nothing to
+ * actually scroll was more surprising than useful.
  */
 class CalendarGridLayout @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : LinearLayout(context, attrs) {
 
-    /** true = next month, false = previous month. */
-    var onSwipe: ((next: Boolean) -> Unit)? = null
+    /** true = next month, false = previous month; [vertical] is which axis triggered it, so the
+     *  caller can animate the transition along the same axis the user actually swiped. */
+    var onSwipe: ((next: Boolean, vertical: Boolean) -> Unit)? = null
+
+    /** See [CalendarPrefs.isVerticalSwipeEnabled]; set by the caller (CalendarActivity reads the
+     *  setting on create/resume) rather than read directly here, so this view stays Settings-
+     *  agnostic. */
+    var verticalSwipeEnabled = false
 
     private val swipeThresholdPx = 40 * resources.displayMetrics.density
     private val swipeVelocityThresholdPx = 60 * resources.displayMetrics.density
@@ -43,18 +51,20 @@ class CalendarGridLayout @JvmOverloads constructor(
 
             return if (abs(deltaX) >= abs(deltaY)) {
                 if (abs(deltaX) > swipeThresholdPx && abs(velocityX) > swipeVelocityThresholdPx) {
-                    onSwipe?.invoke(deltaX < 0)
+                    onSwipe?.invoke(deltaX < 0, false)
+                    true
+                } else {
+                    false
+                }
+            } else if (verticalSwipeEnabled) {
+                if (abs(deltaY) > swipeThresholdPx && abs(velocityY) > swipeVelocityThresholdPx) {
+                    onSwipe?.invoke(deltaY < 0, true)
                     true
                 } else {
                     false
                 }
             } else {
-                if (abs(deltaY) > swipeThresholdPx && abs(velocityY) > swipeVelocityThresholdPx) {
-                    onSwipe?.invoke(deltaY < 0)
-                    true
-                } else {
-                    false
-                }
+                false
             }
         }
     })
@@ -69,7 +79,9 @@ class CalendarGridLayout @JvmOverloads constructor(
      * tap still reaches the day cell's own click listener untouched. Once a drag is detected,
      * this view takes over the touch stream (the child gets an ACTION_CANCEL, clearing its
      * pressed state) so a day can't be "clicked" by a finger that was really just swiping
-     * through it to change month.
+     * through it to change month. A vertical drag doesn't start an intercept at all when
+     * [verticalSwipeEnabled] is off, so it falls through as a no-op instead of eating the touch
+     * for a gesture that wouldn't do anything anyway.
      */
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
@@ -79,8 +91,10 @@ class CalendarGridLayout @JvmOverloads constructor(
                 downY = ev.y
             }
             MotionEvent.ACTION_MOVE -> {
-                if (!isDragging && (abs(ev.x - downX) > touchSlopPx || abs(ev.y - downY) > touchSlopPx)) {
-                    isDragging = true
+                if (!isDragging) {
+                    val draggedHorizontally = abs(ev.x - downX) > touchSlopPx
+                    val draggedVertically = verticalSwipeEnabled && abs(ev.y - downY) > touchSlopPx
+                    if (draggedHorizontally || draggedVertically) isDragging = true
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> isDragging = false

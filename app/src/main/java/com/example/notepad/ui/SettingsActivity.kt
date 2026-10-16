@@ -58,6 +58,11 @@ class SettingsActivity : AppCompatActivity() {
         updateThemeValueText()
         binding.themeRow.setOnClickListener { showThemePicker() }
 
+        binding.verticalSwipeSwitch.isChecked = CalendarPrefs.isVerticalSwipeEnabled(this)
+        binding.verticalSwipeSwitch.setOnCheckedChangeListener { _, isChecked ->
+            CalendarPrefs.setVerticalSwipeEnabled(this, isChecked)
+        }
+
         binding.notificationsSwitch.isChecked = ReminderPrefs.isEnabled(this)
         binding.notificationsSwitch.setOnCheckedChangeListener { _, isChecked ->
             ReminderPrefs.setEnabled(this, isChecked)

@@ -21,6 +21,8 @@
     <string name="mark_done">Mark done</string>
     <string name="previous_month">Previous month</string>
     <string name="next_month">Next month</string>
+    <string name="pick_date">Pick a date</string>
+    <string name="settings_vertical_swipe_title">Swipe up/down to change month</string>
     <string name="action_mark_done">Mark done</string>
     <string name="action_mark_undone">Mark not done</string>
     <string name="action_reminder">Reminder</string>

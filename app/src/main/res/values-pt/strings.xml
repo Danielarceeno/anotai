@@ -21,6 +21,8 @@
     <string name="mark_done">Marcar como concluída</string>
     <string name="previous_month">Mês anterior</string>
     <string name="next_month">Próximo mês</string>
+    <string name="pick_date">Escolher uma data</string>
+    <string name="settings_vertical_swipe_title">Deslizar para cima/baixo para trocar de mês</string>
     <string name="action_mark_done">Marcar como concluída</string>
     <string name="action_mark_undone">Marcar como não concluída</string>
     <string name="action_reminder">Lembrete</string>
