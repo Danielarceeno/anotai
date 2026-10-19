@@ -146,14 +146,6 @@ ESCAPE '\'` over a local SQLite table, not full-text search).
   instead of loading every note into memory at once; search and folder views still load their
   (typically much smaller) result sets directly.
 
-## Known limitations
-
-- Drive sync merges notes per-note by a stable UUID (newer `modifiedDate` wins per note).
-  Deletions are tracked with a local tombstone per uuid, so a note you delete on this device
-  won't resurrect from your own next backup/restore. That tombstone is local-only, though (not
-  itself synced to Drive), so a note deleted on one device while another device is offline can
-  still come back on that other device's next sync instead of staying deleted everywhere.
-
 ## License
 
 MIT — see [`LICENSE`](LICENSE).

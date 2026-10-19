@@ -69,6 +69,51 @@ object BackupHelper {
         null
     }
 
+    data class BackupData(val notes: List<Note>, val tombstones: Map<String, Long>)
+
+    /** Same note fields as [toJson], plus each device's deletion tombstones (uuid ->
+     *  [NoteTombstone.deletedAt]) -- used only for the Google Drive backup file (see
+     *  [com.example.notepad.data.drive.DriveBackupHelper]), so a note deleted on one device can
+     *  be recognized as deleted by another device that still has it locally and never synced
+     *  while the deletion happened (see [NoteTombstone]'s doc for why a local-only tombstone
+     *  wasn't enough for that case). Local manual export/import still use the plain array
+     *  [toJson]/[fromJson] above. */
+    fun toJsonWithTombstones(notes: List<Note>, tombstones: Map<String, Long>): String {
+        val tombstoneArray = JSONArray()
+        tombstones.forEach { (uuid, deletedAt) ->
+            tombstoneArray.put(JSONObject().apply { put("uuid", uuid); put("deletedAt", deletedAt) })
+        }
+        return JSONObject().apply {
+            put("notes", JSONArray(toJson(notes)))
+            put("tombstones", tombstoneArray)
+        }.toString(2)
+    }
+
+    /** Returns null if [text] isn't JSON this function (or legacy [toJson]) could have produced.
+     *  A Drive backup file written before tombstone syncing was added is still a plain notes
+     *  array -- parsed fine here too, just with no tombstones. */
+    fun fromJsonWithTombstones(text: String): BackupData? {
+        return try {
+            if (text.trimStart().startsWith("[")) {
+                fromJson(text)?.let { BackupData(it, emptyMap()) }
+            } else {
+                val obj = JSONObject(text)
+                val notes = fromJson(obj.getJSONArray("notes").toString()) ?: return null
+                val tombstones = mutableMapOf<String, Long>()
+                val tombstoneArray = obj.optJSONArray("tombstones")
+                if (tombstoneArray != null) {
+                    for (i in 0 until tombstoneArray.length()) {
+                        val t = tombstoneArray.getJSONObject(i)
+                        tombstones[t.getString("uuid")] = t.getLong("deletedAt")
+                    }
+                }
+                BackupData(notes, tombstones)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun export(context: Context, uri: Uri, notes: List<Note>) {
         context.contentResolver.openOutputStream(uri)?.use { out ->
             out.write(toJson(notes).toByteArray())

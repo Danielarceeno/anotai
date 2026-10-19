@@ -311,14 +311,16 @@ class SettingsActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val local = repository.getAllForExport()
-                val remote = DriveBackupHelper.restore(applicationContext, account)
-                val merged = if (remote != null) {
-                    DriveBackupHelper.mergeByUuid(local, remote, repository.getTombstones())
+                val remoteData = DriveBackupHelper.restore(applicationContext, account)
+                val merged = if (remoteData != null) {
+                    val tombstones = repository.mergeTombstones(remoteData.tombstones)
+                    val result = DriveBackupHelper.mergeByUuid(local, remoteData.notes, tombstones)
+                    applyMergeResult(result)
+                    result.notes
                 } else {
                     local
                 }
-                applyMergedNotes(merged)
-                DriveBackupHelper.backup(applicationContext, account, merged)
+                DriveBackupHelper.backup(applicationContext, account, merged, repository.getTombstones())
                 Toast.makeText(this@SettingsActivity, R.string.drive_backup_success, Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(this@SettingsActivity, R.string.drive_backup_failed, Toast.LENGTH_SHORT).show()
@@ -331,16 +333,17 @@ class SettingsActivity : AppCompatActivity() {
     private fun restoreFromDrive(account: GoogleSignInAccount) {
         lifecycleScope.launch {
             try {
-                val remote = DriveBackupHelper.restore(applicationContext, account)
-                if (remote == null) {
+                val remoteData = DriveBackupHelper.restore(applicationContext, account)
+                if (remoteData == null) {
                     Toast.makeText(this@SettingsActivity, R.string.drive_no_backup_found, Toast.LENGTH_SHORT).show()
                     return@launch
                 }
                 val local = repository.getAllForExport()
-                val merged = DriveBackupHelper.mergeByUuid(local, remote, repository.getTombstones())
-                applyMergedNotes(merged)
-                DriveBackupHelper.backup(applicationContext, account, merged)
-                val added = merged.size - local.size
+                val tombstones = repository.mergeTombstones(remoteData.tombstones)
+                val result = DriveBackupHelper.mergeByUuid(local, remoteData.notes, tombstones)
+                applyMergeResult(result)
+                DriveBackupHelper.backup(applicationContext, account, result.notes, repository.getTombstones())
+                val added = result.notes.size - local.size
                 val message = resources.getQuantityString(R.plurals.import_success, added, added)
                 Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
@@ -351,11 +354,17 @@ class SettingsActivity : AppCompatActivity() {
 
     /** Applies a [DriveBackupHelper.mergeByUuid] result locally: a merged note that kept an
      *  existing local id is an update (whether its content changed or not, which is cheap and
-     *  simpler than diffing); one with `id == 0` is a note this device didn't have yet. */
-    private suspend fun applyMergedNotes(merged: List<Note>) {
-        for (note in merged) {
+     *  simpler than diffing); one with `id == 0` is a note this device didn't have yet.
+     *  [DriveBackupHelper.MergeResult.locallyDeletedIds] are trashed too -- notes this device
+     *  still had active, but that the merge found a newer tombstone for from another device. */
+    private suspend fun applyMergeResult(result: DriveBackupHelper.MergeResult) {
+        for (note in result.notes) {
             val saved = if (note.id == 0L) note.copy(id = repository.insert(note)) else note.also { repository.update(it) }
             com.example.notepad.notification.NoteReminderScheduler.schedule(applicationContext, saved)
+        }
+        for (id in result.locallyDeletedIds) {
+            repository.trashLocally(id)
+            com.example.notepad.notification.NoteReminderScheduler.cancel(applicationContext, id)
         }
     }
 

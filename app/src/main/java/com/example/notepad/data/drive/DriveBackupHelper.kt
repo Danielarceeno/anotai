@@ -81,18 +81,37 @@ object DriveBackupHelper {
      *
      * [local] only ever contains *active* notes ([com.example.notepad.data.NoteRepository
      * .getAllForExport]), so a note this device trashed looks identical here to one it never
-     * had at all -- without [tombstones] (uuid -> when it was deleted, from
-     * [com.example.notepad.data.NoteRepository.getTombstones]) a deleted note's remote copy would
-     * get merged back in as "remote-only" on every single backup, forever. A tombstoned uuid is
-     * dropped from the remote-only set unless the remote copy was modified *after* the deletion
-     * (someone else is still actively using that note), in which case it still wins through, same
-     * as any other newer-edit-wins conflict here.
+     * had at all -- without [tombstones] (uuid -> when it was deleted; pass
+     * [com.example.notepad.data.NoteRepository.mergeTombstones]'s result, not just
+     * [com.example.notepad.data.NoteRepository.getTombstones], so a deletion made on *another*
+     * device is caught too, not only this one's own) a deleted note's remote copy would get
+     * merged back in as "remote-only" on every single backup, forever. A tombstoned uuid is
+     * dropped unless the surviving copy was modified *after* the deletion (someone is still
+     * actively using that note), in which case it still wins through, same as any other
+     * newer-edit-wins conflict here. That drop applies both to a remote-only note (never had it
+     * tombstoned locally, e.g. deleted on a third device) and to a note still active in [local]
+     * (deleted on some *other* device after this one last synced, so this device never got the
+     * chance to trash it and record its own tombstone) -- [MergeResult.locallyDeletedIds] is the
+     * latter case, for the caller to actually trash locally since this function only computes
+     * the merge, it doesn't touch the database.
      */
-    fun mergeByUuid(local: List<Note>, remote: List<Note>, tombstones: Map<String, Long> = emptyMap()): List<Note> {
+    fun mergeByUuid(local: List<Note>, remote: List<Note>, tombstones: Map<String, Long> = emptyMap()): MergeResult {
         val remoteByUuid = remote.associateBy { it.uuid }
-        val merged = local.map { localNote ->
-            val remoteNote = remoteByUuid[localNote.uuid] ?: return@map localNote
-            if (remoteNote.modifiedDate > localNote.modifiedDate) remoteNote.copy(id = localNote.id) else localNote
+        val locallyDeletedIds = mutableListOf<Long>()
+        val merged = local.mapNotNull { localNote ->
+            val remoteNote = remoteByUuid[localNote.uuid]
+            val winner = if (remoteNote != null && remoteNote.modifiedDate > localNote.modifiedDate) {
+                remoteNote.copy(id = localNote.id)
+            } else {
+                localNote
+            }
+            val deletedAt = tombstones[localNote.uuid]
+            if (deletedAt != null && deletedAt >= winner.modifiedDate) {
+                locallyDeletedIds.add(localNote.id)
+                null
+            } else {
+                winner
+            }
         }
         val localUuids = local.map { it.uuid }.toSet()
         // A remote-only note's `id` is some *other* device's local row id -- meaningless (and
@@ -102,8 +121,14 @@ object DriveBackupHelper {
             .filter { it.uuid !in localUuids }
             .filterNot { note -> tombstones[note.uuid]?.let { it >= note.modifiedDate } == true }
             .map { it.copy(id = 0L) }
-        return merged + remoteOnly
+        return MergeResult(merged + remoteOnly, locallyDeletedIds)
     }
+
+    /** [notes] is what the caller should upload/apply as the new merged state; [locallyDeletedIds]
+     *  are local row ids (always from [local] in [mergeByUuid], so always a real, already-assigned
+     *  id, never 0) that need [com.example.notepad.data.NoteRepository.trashLocally] called on
+     *  them to actually apply a deletion this device only just learned about from another device. */
+    data class MergeResult(val notes: List<Note>, val locallyDeletedIds: List<Long>)
 
     fun signInClient(context: Context): GoogleSignInClient {
         val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -126,10 +151,10 @@ object DriveBackupHelper {
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    suspend fun backup(context: Context, account: GoogleSignInAccount, notes: List<Note>) {
+    suspend fun backup(context: Context, account: GoogleSignInAccount, notes: List<Note>, tombstones: Map<String, Long>) {
         withContext(Dispatchers.IO) {
             val service = driveService(context, account)
-            val content = ByteArrayContent("application/json", BackupHelper.toJson(notes).toByteArray())
+            val content = ByteArrayContent("application/json", BackupHelper.toJsonWithTombstones(notes, tombstones).toByteArray())
             val existingId = findBackupFile(service)
             if (existingId != null) {
                 service.files().update(existingId, null, content).execute()
@@ -145,12 +170,12 @@ object DriveBackupHelper {
 
     /** Null means no backup file exists yet in Drive; distinct from a parse failure, which
      *  throws so the caller can tell "nothing to restore" from "something went wrong". */
-    suspend fun restore(context: Context, account: GoogleSignInAccount): List<Note>? {
+    suspend fun restore(context: Context, account: GoogleSignInAccount): BackupHelper.BackupData? {
         return withContext(Dispatchers.IO) {
             val service = driveService(context, account)
             val fileId = findBackupFile(service) ?: return@withContext null
             val text = service.files().get(fileId).executeMediaAsInputStream().use { it.readBytes().decodeToString() }
-            BackupHelper.fromJson(text) ?: throw IllegalStateException("Drive backup file is not valid JSON")
+            BackupHelper.fromJsonWithTombstones(text) ?: throw IllegalStateException("Drive backup file is not valid JSON")
         }
     }
 

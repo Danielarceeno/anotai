@@ -84,6 +84,31 @@ class NoteRepository(
     suspend fun getTombstones(): Map<String, Long> =
         tombstoneDao.getAll().associate { it.uuid to it.deletedAt }
 
+    /** Unions this device's own tombstones with a remote backup's (the newer [NoteTombstone
+     *  .deletedAt] wins per uuid), persists the result locally, and returns it for
+     *  [com.example.notepad.data.drive.DriveBackupHelper.mergeByUuid] to use. Without persisting
+     *  a remote-only tombstone here, this device would forget about it the moment it's no longer
+     *  included in whichever other device's backup it first saw it in -- it needs to keep
+     *  rejecting that uuid on every future merge, not just this one. */
+    suspend fun mergeTombstones(remote: Map<String, Long>): Map<String, Long> {
+        val local = getTombstones()
+        val merged = (local.keys + remote.keys).associateWith { uuid ->
+            maxOf(local[uuid] ?: 0L, remote[uuid] ?: 0L)
+        }
+        merged.forEach { (uuid, deletedAt) -> tombstoneDao.insert(NoteTombstone(uuid, deletedAt)) }
+        return merged
+    }
+
+    /** Trashes a note without stamping a fresh tombstone over it, for when a Drive merge (see
+     *  [com.example.notepad.data.drive.DriveBackupHelper.mergeByUuid]) already determined --
+     *  using a tombstone [mergeTombstones] already persisted -- that this note was deleted on
+     *  another device. [delete] would otherwise record "deleted just now" here, clobbering the
+     *  real cross-device deletion time that other devices still need to compare against. */
+    suspend fun trashLocally(id: Long) {
+        dao.delete(id)
+        TodayNotesWidgetProvider.notifyNotesChanged(appContext)
+    }
+
     suspend fun deleteForever(id: Long) {
         deleteImageFile(dao.getById(id))
         dao.deleteForever(id)
