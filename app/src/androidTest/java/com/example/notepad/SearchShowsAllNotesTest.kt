@@ -33,7 +33,8 @@ class SearchShowsAllNotesTest {
     fun resetState() {
         TestPrereqs.resetAppState()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val repository = NoteRepository(AppDatabase.getInstance(context).noteDao(), context)
+        val db = AppDatabase.getInstance(context)
+        val repository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())
         runBlocking {
             repository.insert(Note(title = "Alpha note", body = "first"))
             repository.insert(Note(title = "Zebra note", body = "second"))

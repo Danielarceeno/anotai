@@ -39,7 +39,8 @@ class SelectAllNotesTest {
     fun resetState() {
         TestPrereqs.resetAppState()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        repository = NoteRepository(AppDatabase.getInstance(context).noteDao(), context)
+        val db = AppDatabase.getInstance(context)
+        repository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())
         runBlocking {
             repository.insert(Note(title = "First note", body = ""))
             repository.insert(Note(title = "Second note", body = ""))

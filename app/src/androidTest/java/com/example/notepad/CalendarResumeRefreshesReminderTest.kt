@@ -59,7 +59,8 @@ class CalendarResumeRefreshesReminderTest {
         val todayStart = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis
-        val repository = NoteRepository(AppDatabase.getInstance(context).noteDao(), context)
+        val db = AppDatabase.getInstance(context)
+        val repository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())
         runBlocking { repository.insert(Note(title = "Due today", body = "", dueDate = todayStart)) }
 
         // Simulates leaving this (singleTop) screen and coming back, e.g. after creating that
