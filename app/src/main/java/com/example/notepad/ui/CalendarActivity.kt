@@ -283,11 +283,23 @@ class CalendarActivity : AppCompatActivity() {
         val cal = Calendar.getInstance()
         cal.set(Calendar.DAY_OF_WEEK, Calendar.SUNDAY)
         for (i in 0 until 7) {
+            // Sunday (i=0) and Saturday (i=6) get the same tint as their day-number column
+            // below, instead of the plain dimmed label every other weekday gets.
+            val weekendColorRes = when (i) {
+                0 -> R.color.calendar_sunday_number
+                6 -> R.color.calendar_saturday_number
+                else -> null
+            }
             val label = android.widget.TextView(this).apply {
                 text = symbols.format(cal.time).uppercase(Locale.getDefault())
                 gravity = android.view.Gravity.CENTER
                 layoutParams = android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                alpha = 0.7f
+                if (weekendColorRes != null) {
+                    setTextColor(getColor(weekendColorRes))
+                    alpha = 1f
+                } else {
+                    alpha = 0.7f
+                }
             }
             binding.weekdayRow.addView(label)
             cal.add(Calendar.DAY_OF_MONTH, 1)
