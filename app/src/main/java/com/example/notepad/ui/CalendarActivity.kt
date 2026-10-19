@@ -209,12 +209,36 @@ class CalendarActivity : AppCompatActivity() {
                     // faded leading/trailing days from adjacent months are display-only.
                     currentDays.getOrNull(index)?.let { if (it.inCurrentMonth) onDayClicked(it) }
                 }
+                // A light press-down/bounce-back scale on touch, independent of the click
+                // itself (returns false so performClick/the listener above still fire) -- a
+                // plain ripple alone gave no feedback on a fast tap-and-release, since it's
+                // easy to miss against the grid's many identical cells.
+                cellBinding.root.setOnTouchListener { view, event -> animateDayPress(view, event) }
                 row.addView(cellBinding.root)
                 cells.add(cellBinding)
             }
             binding.calendarGrid.addView(row)
         }
         dayCells = cells
+    }
+
+    /** Scales a day cell down slightly on touch-down and bounces it back on release, as instant
+     *  feedback a tap landed -- independent of [onDayClicked]'s dialog, which doesn't open until
+     *  the full click completes. Returns false (never consumes the event) so the view's own
+     *  OnClickListener and ripple background still fire normally. A disabled cell (a faded
+     *  leading/trailing day from an adjacent month) is left alone, matching that it isn't
+     *  clickable either. */
+    private fun animateDayPress(view: View, event: android.view.MotionEvent): Boolean {
+        if (!view.isClickable) return false
+        when (event.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN ->
+                view.animate().scaleX(0.92f).scaleY(0.92f).setDuration(100)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
+                view.animate().scaleX(1f).scaleY(1f).setDuration(220)
+                    .setInterpolator(android.view.animation.OvershootInterpolator(3f)).start()
+        }
+        return false
     }
 
     /**
