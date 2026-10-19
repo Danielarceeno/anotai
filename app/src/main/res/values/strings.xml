@@ -88,6 +88,10 @@
     <string name="battery_optimization_action">Fix</string>
 
     <string name="widget_title">Today — %1$s</string>
+    <plurals name="widget_title_range_days">
+        <item quantity="one">Next %1$d day</item>
+        <item quantity="other">Next %1$d days</item>
+    </plurals>
     <string name="widget_empty">No notes for today</string>
     <string name="widget_description">Shows today\'s notes and reminders on your home screen</string>
 
@@ -119,6 +123,11 @@
     <string name="settings_reminder_time_title">Daily reminder time</string>
     <string name="settings_folders_title">Folders</string>
     <string name="settings_trash_title">Trash</string>
+    <string name="settings_widget_title">Widget</string>
+    <string name="settings_widget_range_title">Notes shown</string>
+    <string name="widget_range_today">Today</string>
+    <string name="widget_range_3_days">Next 3 days</string>
+    <string name="widget_range_7_days">Next 7 days</string>
     <string name="settings_backup_title">Backup</string>
     <string name="settings_export_title">Export notes to file</string>
     <string name="settings_import_title">Import notes from file</string>

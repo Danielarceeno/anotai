@@ -107,8 +107,14 @@ class TodayNotesWidgetProvider : AppWidgetProvider() {
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_today_notes)
 
-            val dateLabel = SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(Calendar.getInstance().time)
-            views.setTextViewText(R.id.widgetTitle, context.getString(R.string.widget_title, dateLabel))
+            val rangeDays = WidgetPrefs.getRangeDays(context)
+            val titleText = if (rangeDays <= 1) {
+                val dateLabel = SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(Calendar.getInstance().time)
+                context.getString(R.string.widget_title, dateLabel)
+            } else {
+                context.resources.getQuantityString(R.plurals.widget_title_range_days, rangeDays, rangeDays)
+            }
+            views.setTextViewText(R.id.widgetTitle, titleText)
 
             val serviceIntent = Intent(context, TodayNotesRemoteViewsService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)

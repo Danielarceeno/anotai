@@ -88,6 +88,10 @@
     <string name="battery_optimization_action">Corrigir</string>
 
     <string name="widget_title">Hoje — %1$s</string>
+    <plurals name="widget_title_range_days">
+        <item quantity="one">Próximo %1$d dia</item>
+        <item quantity="other">Próximos %1$d dias</item>
+    </plurals>
     <string name="widget_empty">Nenhuma nota para hoje</string>
     <string name="widget_description">Mostra as notas e lembretes de hoje na tela inicial</string>
 
@@ -119,6 +123,11 @@
     <string name="settings_reminder_time_title">Horário do lembrete diário</string>
     <string name="settings_folders_title">Pastas</string>
     <string name="settings_trash_title">Lixeira</string>
+    <string name="settings_widget_title">Widget</string>
+    <string name="settings_widget_range_title">Notas exibidas</string>
+    <string name="widget_range_today">Hoje</string>
+    <string name="widget_range_3_days">Próximos 3 dias</string>
+    <string name="widget_range_7_days">Próximos 7 dias</string>
     <string name="settings_backup_title">Backup</string>
     <string name="settings_export_title">Exportar notas para arquivo</string>
     <string name="settings_import_title">Importar notas de arquivo</string>

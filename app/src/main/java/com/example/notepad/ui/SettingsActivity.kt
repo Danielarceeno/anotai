@@ -78,6 +78,9 @@ class SettingsActivity : AppCompatActivity() {
         binding.foldersRow.setOnClickListener { startActivity(Intent(this, FoldersActivity::class.java)) }
         binding.trashRow.setOnClickListener { startActivity(Intent(this, TrashActivity::class.java)) }
 
+        updateWidgetRangeText()
+        binding.widgetRangeRow.setOnClickListener { showWidgetRangePicker() }
+
         binding.exportRow.setOnClickListener { exportLauncher.launch("notepad-backup.json") }
         binding.importRow.setOnClickListener { importLauncher.launch(arrayOf("application/json", "text/*")) }
 
@@ -220,6 +223,35 @@ class SettingsActivity : AppCompatActivity() {
             val message = resources.getQuantityString(R.plurals.import_success, notes.size, notes.size)
             Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun updateWidgetRangeText() {
+        binding.widgetRangeValue.text = when (com.example.notepad.widget.WidgetPrefs.getRangeDays(this)) {
+            3 -> getString(R.string.widget_range_3_days)
+            7 -> getString(R.string.widget_range_7_days)
+            else -> getString(R.string.widget_range_today)
+        }
+    }
+
+    private fun showWidgetRangePicker() {
+        val daysOptions = intArrayOf(1, 3, 7)
+        val labels = arrayOf(
+            getString(R.string.widget_range_today),
+            getString(R.string.widget_range_3_days),
+            getString(R.string.widget_range_7_days)
+        )
+        val current = daysOptions.indexOf(com.example.notepad.widget.WidgetPrefs.getRangeDays(this)).coerceAtLeast(0)
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.settings_widget_range_title)
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                com.example.notepad.widget.WidgetPrefs.setRangeDays(this, daysOptions[which])
+                updateWidgetRangeText()
+                com.example.notepad.widget.TodayNotesWidgetProvider.notifyNotesChanged(applicationContext)
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.reminder_cancel, null)
+            .show()
     }
 
     private fun updateDriveRow() {

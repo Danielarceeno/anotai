@@ -26,14 +26,29 @@ private class TodayNotesRemoteViewsFactory(
 
     override fun onCreate() {}
 
+    /** Walks [WidgetPrefs.getRangeDays] days forward from today (1 by default, i.e. just today),
+     *  unioning each day's due notes rather than only checking today -- a note recurring on
+     *  several of those days (or due on more than one, which can't happen, but a note due on day
+     *  2 of a 3-day range still should) is kept only once, in the order its first occurrence in
+     *  the range falls. */
     override fun onDataSetChanged() {
         val dao = AppDatabase.getInstance(context).noteDao()
         val todayStart = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis
+        val oneDayMillis = 24 * 60 * 60 * 1000L
+        val rangeDays = WidgetPrefs.getRangeDays(context)
 
-        notes = runBlocking { dao.getAllReminders() }
-            .filter { RecurrenceUtils.occursOn(it, todayStart) && !RecurrenceUtils.isCompletedOn(it, todayStart) }
+        val allReminders = runBlocking { dao.getAllReminders() }
+        val seenIds = mutableSetOf<Long>()
+        val result = mutableListOf<Note>()
+        for (offset in 0 until rangeDays) {
+            val dayStart = todayStart + offset * oneDayMillis
+            allReminders
+                .filter { RecurrenceUtils.occursOn(it, dayStart) && !RecurrenceUtils.isCompletedOn(it, dayStart) }
+                .forEach { note -> if (seenIds.add(note.id)) result.add(note) }
+        }
+        notes = result
     }
 
     override fun onDestroy() {
