@@ -121,8 +121,11 @@ app/src/main/java/com/example/notepad/
     └── ReminderActivity.kt, DayNotesDialog.kt, AddNoteTypeDialog.kt
 ```
 
-`EVIDENCE.md` documents the reverse-engineering behind the search implementation (`LIKE ...
-ESCAPE '\'` over a local SQLite table, not full-text search).
+`EVIDENCE.md` documents the reverse-engineering behind the search implementation's *behavior*:
+`LIKE ... ESCAPE '\'`-style substring matching, including mid-word. Under the hood it now runs
+against an FTS5 index (`notes_fts`, trigram-tokenized specifically so SQLite can still accelerate
+that same `LIKE` substring scan) rather than a full table scan, but the matching behavior itself
+is unchanged.
 
 ## Testing
 

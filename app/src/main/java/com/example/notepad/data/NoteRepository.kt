@@ -143,12 +143,23 @@ class NoteRepository(
     suspend fun getAllReminders(): List<Note> = dao.getAllReminders()
 
     /**
-     * [query] is the raw text the user typed; this builds the LIKE
-     * pattern and escapes '%', '_' and '\' so a user searching for an
-     * actual percent sign or underscore doesn't get treated as a wildcard.
+     * [query] is the raw text the user typed; this builds the LIKE pattern and escapes '%', '_'
+     * and '\' so a user searching for an actual percent sign or underscore doesn't get treated
+     * as a wildcard -- same as before the search moved onto the `notes_fts` trigram index (see
+     * [NoteDao.search]'s doc): that index just makes the same substring scan faster, it doesn't
+     * change what matches.
      */
-    fun search(query: String): LiveData<List<Note>> =
-        dao.search("%${escapeLikePattern(query)}%")
+    fun search(query: String): LiveData<List<Note>> {
+        val pattern = "%${escapeLikePattern(query)}%"
+        val sql = """
+            SELECT notes.* FROM notes
+            JOIN notes_fts ON notes.id = notes_fts.rowid
+            WHERE notes.activeState = ${Note.ACTIVE}
+            AND (notes_fts.title LIKE ? ESCAPE '\' OR notes_fts.body LIKE ? ESCAPE '\')
+            ORDER BY notes.modifiedDate DESC
+        """.trimIndent()
+        return dao.search(SimpleSQLiteQuery(sql, arrayOf(pattern, pattern)))
+    }
 
     companion object {
         fun escapeLikePattern(raw: String): String =

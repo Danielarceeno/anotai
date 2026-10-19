@@ -83,20 +83,18 @@ interface NoteDao {
     fun observeAllReminders(): LiveData<List<Note>>
 
     /**
-     * Same technique observed in the reference APK's query strings
-     * ("... LIKE ? ESCAPE '\'"): a plain substring scan over the text
-     * columns, not FTS. The caller is responsible for wrapping [pattern]
-     * in '%...%' and escaping any literal '%', '_' or '\' the user typed
-     * (see NoteRepository.escapeLikePattern), since Room binds the
-     * parameter as-is rather than treating it as SQL.
+     * Same substring-match semantics observed in the reference APK's query strings
+     * ("... LIKE ? ESCAPE '\'") -- a trigram-tokenized FTS5 index (see
+     * [com.example.notepad.data.AppDatabase]'s `notes_fts`/`MIGRATION_12_13`) is what's doing the
+     * actual scan now instead of a full `notes` table scan, but SQLite can use that same index to
+     * accelerate a plain `LIKE '%...%'` query, so the query built in
+     * [NoteRepository.search] still wraps its pattern in '%...%' and escapes any literal '%',
+     * '_' or '\' the user typed exactly as before. A `@RawQuery`, not `@Query`, because `notes_fts`
+     * isn't a Room-managed entity (see `notes_fts`'s doc) -- Room's compile-time query
+     * verification only knows about declared entities/views. [observedEntities] still ties this
+     * to [Note] so LiveData invalidation keeps working: every write to `notes_fts` happens inside
+     * the same transaction as the `notes` write that triggered it.
      */
-    @Query(
-        """
-        SELECT * FROM notes
-        WHERE activeState = ${Note.ACTIVE}
-        AND (title LIKE :pattern ESCAPE '\' OR body LIKE :pattern ESCAPE '\')
-        ORDER BY modifiedDate DESC
-        """
-    )
-    fun search(pattern: String): LiveData<List<Note>>
+    @RawQuery(observedEntities = [Note::class])
+    fun search(query: SupportSQLiteQuery): LiveData<List<Note>>
 }
