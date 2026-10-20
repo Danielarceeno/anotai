@@ -47,6 +47,12 @@ import org.junit.runner.RunWith
  * fix [CalendarDayDialogShowsNotesTest] already uses for an identical reason. `creatingAFolder`
  * doesn't need this: nothing exists yet to race, since the folder itself is created through a
  * genuine Espresso-driven UI interaction after the Activity is already up.
+ *
+ * Each launch is wrapped in [ActivityScenario.use] -- a bare, unstored [ActivityScenario.launch]
+ * call never gets `.close()`'d, leaking that Activity instance into later tests in the same
+ * instrumentation process (caught on a real CI run: [SettingsThemeTest]'s theme change tried to
+ * `recreate()` every still-tracked AppCompat activity, including these leaked ones, and that hit
+ * one in a bad enough state to throw off the main thread).
  */
 @RunWith(AndroidJUnit4::class)
 class FoldersFlowTest {
@@ -65,27 +71,27 @@ class FoldersFlowTest {
 
     @Test
     fun creatingAFolder_showsUpInTheList() {
-        ActivityScenario.launch(FoldersActivity::class.java)
+        ActivityScenario.launch(FoldersActivity::class.java).use {
+            onView(withId(R.id.addFolderButton)).perform(click())
+            onView(withId(R.id.textInput)).perform(typeText("Groceries"))
+            onView(allOf(withText(R.string.folder_add), isAssignableFrom(android.widget.Button::class.java)))
+                .perform(click())
 
-        onView(withId(R.id.addFolderButton)).perform(click())
-        onView(withId(R.id.textInput)).perform(typeText("Groceries"))
-        onView(allOf(withText(R.string.folder_add), isAssignableFrom(android.widget.Button::class.java)))
-            .perform(click())
-
-        onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Groceries"))))
+            onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Groceries"))))
+        }
     }
 
     @Test
     fun renamingAFolder_updatesItsRow() {
         runBlocking { folderRepository.insert("Old name") }
-        ActivityScenario.launch(FoldersActivity::class.java)
+        ActivityScenario.launch(FoldersActivity::class.java).use {
+            onView(withId(R.id.renameButton)).perform(click())
+            onView(withId(R.id.textInput)).perform(clearText(), typeText("Updated name"))
+            onView(allOf(withText(R.string.folder_rename), isAssignableFrom(android.widget.Button::class.java)))
+                .perform(click())
 
-        onView(withId(R.id.renameButton)).perform(click())
-        onView(withId(R.id.textInput)).perform(clearText(), typeText("Updated name"))
-        onView(allOf(withText(R.string.folder_rename), isAssignableFrom(android.widget.Button::class.java)))
-            .perform(click())
-
-        onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Updated name"))))
+            onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Updated name"))))
+        }
     }
 
     @Test
@@ -94,12 +100,12 @@ class FoldersFlowTest {
         val noteId = runBlocking {
             noteRepository.insert(Note(title = "Filed note", body = "", folderId = folderId))
         }
-        ActivityScenario.launch(FoldersActivity::class.java)
+        ActivityScenario.launch(FoldersActivity::class.java).use {
+            onView(withId(R.id.deleteButton)).perform(click())
+            onView(withText(R.string.menu_delete)).perform(click())
 
-        onView(withId(R.id.deleteButton)).perform(click())
-        onView(withText(R.string.menu_delete)).perform(click())
-
-        onView(withId(R.id.emptyView)).check(matches(isDisplayed()))
+            onView(withId(R.id.emptyView)).check(matches(isDisplayed()))
+        }
         val stillThere = runBlocking { noteRepository.getById(noteId) }
         assertEquals(0L, stillThere?.folderId)
     }

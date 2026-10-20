@@ -40,6 +40,10 @@ import org.junit.runner.RunWith
  * note's row simply not being found at all. Seeding first means the Activity's very first
  * emission already has the right data, the same fix [FoldersFlowTest]/[CalendarDayDialogShowsNotesTest]
  * use for the identical reason.
+ *
+ * Each launch is wrapped in [ActivityScenario.use] -- a bare, unstored [ActivityScenario.launch]
+ * call never gets `.close()`'d, leaking that Activity instance into later tests in the same
+ * instrumentation process (see [FoldersFlowTest]'s doc comment for the CI failure this caused).
  */
 @RunWith(AndroidJUnit4::class)
 class TrashFlowTest {
@@ -61,10 +65,10 @@ class TrashFlowTest {
             repository.delete(id)
             id
         }
-        ActivityScenario.launch(TrashActivity::class.java)
-
-        onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Trashed note"))))
-        onView(withId(R.id.restoreButton)).perform(click())
+        ActivityScenario.launch(TrashActivity::class.java).use {
+            onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Trashed note"))))
+            onView(withId(R.id.restoreButton)).perform(click())
+        }
 
         val restored = awaitUntil { runBlocking { repository.getById(noteId) }?.takeIf { it.activeState == Note.ACTIVE } }
         assertEquals(Note.ACTIVE, restored?.activeState)
@@ -79,12 +83,12 @@ class TrashFlowTest {
             repository.delete(id)
             id
         }
-        ActivityScenario.launch(TrashActivity::class.java)
-
-        onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Gone for good"))))
-        onView(withId(R.id.deleteForeverButton)).perform(click())
-        onView(allOf(withText(R.string.trash_delete_forever), isAssignableFrom(android.widget.Button::class.java)))
-            .perform(click())
+        ActivityScenario.launch(TrashActivity::class.java).use {
+            onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Gone for good"))))
+            onView(withId(R.id.deleteForeverButton)).perform(click())
+            onView(allOf(withText(R.string.trash_delete_forever), isAssignableFrom(android.widget.Button::class.java)))
+                .perform(click())
+        }
 
         val deadline = System.currentTimeMillis() + 5000
         var stillExists = true

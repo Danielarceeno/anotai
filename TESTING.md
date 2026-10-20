@@ -170,3 +170,26 @@ pre-session tests avoid this either by seeding before launch (`CalendarDayDialog
 `SearchShowsAllNotesTest`) or by polling with a timeout after mutating a running Activity's data
 (`SelectAllNotesTest`, `CalendarResumeRefreshesReminderTest`) -- this session's new tests now
 follow the same two patterns throughout instead of a bare, unwaited assertion.
+
+### Round 3: one failure left, and it was round 2's own fix
+
+Pushed round 2's fixes, watched the next run: down to a single failure, `SettingsThemeTest`,
+the *exact same* `Activity.recreate()` / main-thread crash as rounds 1 and 2 -- meaning the
+`SecurityLockFlowTest` cleanup fix from round 1 wasn't the only (or even the main) source of
+leaked Activities by this point. It was round 2's own switch to `ActivityScenario.launch(...)` in
+`FoldersFlowTest`/`TrashFlowTest`: a bare, unstored call to that function never gets `.close()`'d
+(unlike `ActivityScenarioRule`, which closes its scenario automatically in its own teardown) --
+so instead of fixing the leak, round 2 had *multiplied* it from one orphaned Activity
+(`SecurityLockFlowTest`'s `CalendarActivity`) to potentially five (`FoldersActivity` x3,
+`TrashActivity` x2), each one a live `AppCompatActivity` instance `AppCompatDelegate
+.setDefaultNightMode()` would later try to `recreate()`.
+
+**Fix**: wrapped every `ActivityScenario.launch(...)` call in both files in `.use { }` (Kotlin's
+standard `Closeable` extension -- `ActivityScenario` implements `AutoCloseable`), so each one is
+explicitly closed (which finishes and destroys the Activity) right after its own test body runs,
+regardless of whether an assertion inside throws.
+
+The real lesson underneath both round 2 and round 3: `ActivityScenario.launch(...)` and
+`ActivityScenarioRule` are *not* interchangeable call-for-call -- the rule's automatic lifecycle
+management is easy to take for granted until a plain `.launch()` call is substituted in without
+also taking on the responsibility of closing it.
