@@ -16,6 +16,7 @@ import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.data.RecurrenceUtils
 import com.example.notepad.ui.CalendarActivity
+import com.example.notepad.ui.NoteEditorActivity
 import java.util.Calendar
 
 enum class ReminderCheckResult { NOTHING_DUE, NOTIFIED, PERMISSION_DENIED }
@@ -81,7 +82,22 @@ object ReminderNotifier {
         if (!isNotificationPermissionGranted(context)) return ReminderCheckResult.PERMISSION_DENIED
         ensureChannel(context)
 
-        val openIntent = Intent(context, CalendarActivity::class.java)
+        val first = notes.first()
+
+        // A single note due: tapping the notification opens that exact note, not just the
+        // calendar overview -- there's nothing ambiguous to pick between. With more than one,
+        // there's no single note to deep-link to (a plain notification can't give each bundled
+        // note its own tap target), so it still falls back to today's day dialog, same as before.
+        val openIntent = if (notes.size == 1) {
+            Intent(context, NoteEditorActivity::class.java)
+                .putExtra(NoteEditorActivity.EXTRA_NOTE_ID, first.id)
+                .putExtra(NoteEditorActivity.EXTRA_NOTE_TYPE, first.type)
+                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        } else {
+            Intent(context, CalendarActivity::class.java)
+                .putExtra(CalendarActivity.EXTRA_OPEN_TODAY, true)
+                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
         val contentIntent = PendingIntent.getActivity(
             context, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -90,7 +106,6 @@ object ReminderNotifier {
         fun bodyPlainText(note: Note) = com.example.notepad.ui.NoteFormatting.plainText(note.body, note.isFormatted)
         fun label(note: Note) = note.title.ifBlank { bodyPlainText(note).take(60) }
 
-        val first = notes.first()
         val titleText = "[${notes.size}] ${label(first)}"
         val bigText = if (notes.size == 1) {
             bodyPlainText(first).ifBlank { first.title }

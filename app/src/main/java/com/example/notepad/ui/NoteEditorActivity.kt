@@ -16,6 +16,7 @@ import androidx.core.graphics.drawable.DrawableCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.notepad.NotepadApplication
 import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
 import com.example.notepad.data.ChecklistItem
@@ -483,15 +484,24 @@ class NoteEditorActivity : AppCompatActivity() {
         }
         val isEmpty = title.isBlank() && (if (noteType == Note.TYPE_CHECKLIST) checklistItems.isEmpty() else binding.bodyInput.text.isBlank())
         val existing = note
+        // Everything below this point runs on NotepadApplication.applicationScope, not
+        // lifecycleScope: this is only ever called from onPause(), and the normal exit path
+        // (done button / back press) already called finish() just before onPause() runs here --
+        // so onDestroy() (which cancels lifecycleScope) can land while the suspend DB write below
+        // is still in flight, silently dropping the save along with the reminder-scheduling/
+        // Drive-sync-trigger that follows it. Everything the coroutine needs is snapshotted into
+        // local vals first so it never has to read from (destroyed) Activity state.
+        val appContext = applicationContext
+        val repo = repository
 
         if (isEmpty) {
             if (existing != null) {
                 saveInFlight = true
-                lifecycleScope.launch {
+                NotepadApplication.applicationScope.launch {
                     try {
-                        repository.delete(existing.id)
-                        ReminderNotifier.checkAndNotify(applicationContext)
-                        NoteReminderScheduler.cancel(applicationContext, existing.id)
+                        repo.delete(existing.id)
+                        ReminderNotifier.checkAndNotify(appContext)
+                        NoteReminderScheduler.cancel(appContext, existing.id)
                     } finally {
                         saveInFlight = false
                     }
@@ -502,8 +512,18 @@ class NoteEditorActivity : AppCompatActivity() {
 
         rememberLastUsedColor(selectedColorIndex)
 
+        val colorIndex = selectedColorIndex
+        val type = noteType
+        val dueDate = selectedDueDate
+        val repetition = selectedRepetition
+        val repeatUntil = selectedRepeatUntil
+        val reminderTimeMinutes = selectedReminderTimeMinutes
+        val reminderEndTimeMinutes = selectedReminderEndTimeMinutes
+        val folderId = selectedFolderId
+        val imagePath = selectedImagePath
+
         saveInFlight = true
-        lifecycleScope.launch {
+        NotepadApplication.applicationScope.launch {
             try {
                 val saved: Note
                 if (existing != null) {
@@ -511,42 +531,44 @@ class NoteEditorActivity : AppCompatActivity() {
                         title = title,
                         body = body,
                         isFormatted = isFormatted,
-                        colorIndex = selectedColorIndex,
-                        type = noteType,
-                        dueDate = selectedDueDate,
-                        repetition = selectedRepetition,
-                        repeatUntil = selectedRepeatUntil,
-                        reminderTimeMinutes = selectedReminderTimeMinutes,
-                        reminderEndTimeMinutes = selectedReminderEndTimeMinutes,
-                        folderId = selectedFolderId,
-                        imagePath = selectedImagePath,
+                        colorIndex = colorIndex,
+                        type = type,
+                        dueDate = dueDate,
+                        repetition = repetition,
+                        repeatUntil = repeatUntil,
+                        reminderTimeMinutes = reminderTimeMinutes,
+                        reminderEndTimeMinutes = reminderEndTimeMinutes,
+                        folderId = folderId,
+                        imagePath = imagePath,
                         modifiedDate = System.currentTimeMillis()
                     )
-                    repository.update(saved)
+                    repo.update(saved)
                 } else {
                     val draft = Note(
                         title = title,
                         body = body,
                         isFormatted = isFormatted,
-                        colorIndex = selectedColorIndex,
-                        type = noteType,
-                        dueDate = selectedDueDate,
-                        repetition = selectedRepetition,
-                        repeatUntil = selectedRepeatUntil,
-                        reminderTimeMinutes = selectedReminderTimeMinutes,
-                        reminderEndTimeMinutes = selectedReminderEndTimeMinutes,
-                        folderId = selectedFolderId,
-                        imagePath = selectedImagePath
+                        colorIndex = colorIndex,
+                        type = type,
+                        dueDate = dueDate,
+                        repetition = repetition,
+                        repeatUntil = repeatUntil,
+                        reminderTimeMinutes = reminderTimeMinutes,
+                        reminderEndTimeMinutes = reminderEndTimeMinutes,
+                        folderId = folderId,
+                        imagePath = imagePath
                     )
-                    val id = repository.insert(draft)
+                    val id = repo.insert(draft)
                     saved = draft.copy(id = id)
+                    // A harmless no-op write if this Activity instance is already destroyed by
+                    // the time this line runs; only matters if it's merely paused and comes back.
                     note = saved
                     // "Create" (not every edit) is the moment the user most needs to know this
                     // note is actually safe -- an immediate background sync instead of waiting
                     // for the next periodic tick (up to several hours away). A no-op if nobody's
                     // signed in to Drive.
-                    if (com.example.notepad.data.drive.DriveBackupHelper.lastSignedInAccount(applicationContext) != null) {
-                        com.example.notepad.data.drive.DriveBackupHelper.triggerImmediateBackup(applicationContext)
+                    if (com.example.notepad.data.drive.DriveBackupHelper.lastSignedInAccount(appContext) != null) {
+                        com.example.notepad.data.drive.DriveBackupHelper.triggerImmediateBackup(appContext)
                     }
                 }
                 // Deliberately not calling ReminderNotifier.checkAndNotify() here: creating/editing
@@ -554,7 +576,7 @@ class NoteEditorActivity : AppCompatActivity() {
                 // check (or the next app open) should surface it. The note's own exact-time alarm
                 // (if any) is a separate concern and always needs re-scheduling after a save, though,
                 // since the date/time/repetition the alarm depends on may have just changed.
-                NoteReminderScheduler.schedule(applicationContext, saved)
+                NoteReminderScheduler.schedule(appContext, saved)
             } finally {
                 saveInFlight = false
             }

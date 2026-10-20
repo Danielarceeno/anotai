@@ -96,6 +96,14 @@
     </plurals>
     <string name="widget_empty">Nenhuma nota para hoje</string>
     <string name="widget_description">Mostra as notas e lembretes de hoje na tela inicial</string>
+    <string name="widget_description_1x1">Um mini widget 1x1 com a data de hoje -- toque para abrir o dia</string>
+    <string name="widget_description_2x2_list">Um widget 2x2 fixo com as notas de hoje em uma lista pequena</string>
+    <string name="widget_description_2x2_summary">Um widget 2x2 fixo mostrando quantas notas vencem hoje e quantas já foram concluídas</string>
+    <string name="widget_summary_progress">%1$d de %2$d concluídas hoje</string>
+    <string name="widget_label_adaptive">Anotaí (redimensionável)</string>
+    <string name="widget_label_1x1">Anotaí (1x1)</string>
+    <string name="widget_label_2x2_list">Anotaí: lista de hoje (2x2)</string>
+    <string name="widget_label_2x2_summary">Anotaí: progresso de hoje (2x2)</string>
 
     <string name="trash_title">Lixeira</string>
     <string name="main_notes_empty">Nenhuma nota ainda — toque em + para adicionar</string>

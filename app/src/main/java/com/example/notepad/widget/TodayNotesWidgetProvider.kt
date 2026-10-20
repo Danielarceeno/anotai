@@ -51,13 +51,20 @@ class TodayNotesWidgetProvider : AppWidgetProvider() {
          *  the compact tile reads better than a barely-there list. */
         private const val COMPACT_MAX_WIDTH_DP = 180
         private const val COMPACT_MAX_HEIGHT_DP = 100
-        /** Call after any note insert/update/delete so every placed widget refreshes. */
+        /** Call after any note insert/update/delete so every placed widget refreshes -- the
+         *  resizable widget this class backs, plus its three fixed-size siblings (1x1, a plain
+         *  2x2 list, and a 2x2 "at a glance" summary), each a separately pickable widget rather
+         *  than reachable only by resizing this one. */
         fun notifyNotesChanged(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, TodayNotesWidgetProvider::class.java))
-            if (ids.isEmpty()) return
-            manager.notifyAppWidgetViewDataChanged(ids, R.id.widgetListView)
-            ids.forEach { updateWidget(context, manager, it) }
+            if (ids.isNotEmpty()) {
+                manager.notifyAppWidgetViewDataChanged(ids, R.id.widgetListView)
+                ids.forEach { updateWidget(context, manager, it) }
+            }
+            TodayNotes1x1WidgetProvider.refresh(context)
+            TodayNotes2x2WidgetProvider.refresh(context)
+            TodayNotesSummaryWidgetProvider.refresh(context)
         }
 
         private fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, widgetId: Int) {
@@ -99,7 +106,8 @@ class TodayNotesWidgetProvider : AppWidgetProvider() {
             return (width in 1 until COMPACT_MAX_WIDTH_DP) || (height in 1 until COMPACT_MAX_HEIGHT_DP)
         }
 
-        private fun buildFullViews(
+        /** Not private: reused as-is by [TodayNotes2x2WidgetProvider], its fixed-size sibling. */
+        fun buildFullViews(
             context: Context,
             widgetId: Int,
             openAppIntent: PendingIntent,
@@ -149,7 +157,8 @@ class TodayNotesWidgetProvider : AppWidgetProvider() {
          *  button when there's room for one. No live note count here -- that would need a
          *  blocking DB read off this (possibly main-thread) call path; the full-size layout above
          *  already covers that via its RemoteViewsService, which runs off-thread by design. */
-        private fun buildCompactViews(
+        /** Not private: reused as-is by [TodayNotes1x1WidgetProvider], its fixed-size sibling. */
+        fun buildCompactViews(
             context: Context,
             openAppIntent: PendingIntent,
             addPendingIntent: PendingIntent

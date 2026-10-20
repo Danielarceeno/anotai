@@ -121,13 +121,55 @@
 
         <receiver
             android:name=".widget.TodayNotesWidgetProvider"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/widget_label_adaptive">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_today_notes_info" />
+        </receiver>
+
+        <!-- Three fixed-size siblings of the resizable widget above, each its own pickable entry
+             in the launcher's widget picker instead of only reachable by resizing that one down:
+             a 1x1 date tile, a 2x2 small list, and a visually different 2x2 "at a glance" summary
+             (TodayNotes1x1WidgetProvider / TodayNotes2x2WidgetProvider /
+             TodayNotesSummaryWidgetProvider). -->
+        <receiver
+            android:name=".widget.TodayNotes1x1WidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_label_1x1">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_1x1_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TodayNotes2x2WidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_label_2x2_list">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_2x2_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TodayNotesSummaryWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_label_2x2_summary">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_summary_2x2_info" />
         </receiver>
 
         <service

@@ -96,6 +96,14 @@
     </plurals>
     <string name="widget_empty">No notes for today</string>
     <string name="widget_description">Shows today\'s notes and reminders on your home screen</string>
+    <string name="widget_description_1x1">A tiny 1x1 tile with today\'s date -- tap to open today</string>
+    <string name="widget_description_2x2_list">A fixed 2x2 tile with today\'s notes as a small scrollable list</string>
+    <string name="widget_description_2x2_summary">A fixed 2x2 tile showing how many notes are due today and done, at a glance</string>
+    <string name="widget_summary_progress">%1$d of %2$d done today</string>
+    <string name="widget_label_adaptive">Anotaí (resizable)</string>
+    <string name="widget_label_1x1">Anotaí (1x1)</string>
+    <string name="widget_label_2x2_list">Anotaí: today\'s list (2x2)</string>
+    <string name="widget_label_2x2_summary">Anotaí: today\'s progress (2x2)</string>
 
     <string name="trash_title">Trash</string>
     <string name="main_notes_empty">No notes yet — tap + to add one</string>
