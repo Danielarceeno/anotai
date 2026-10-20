@@ -111,6 +111,46 @@ class RecurrenceUtilsTest {
         assertFalse(RecurrenceUtils.occursOn(note, dayMillis(2027, Calendar.NOVEMBER, 14)))
     }
 
+    @Test
+    fun `monthly nth weekday matches the same week-of-month and weekday in a later month`() {
+        // Oct 9 2026 is the 2nd Friday of October.
+        val note = Note(
+            title = "t", body = "",
+            dueDate = dayMillis(2026, Calendar.OCTOBER, 9),
+            repetition = Note.REPEAT_MONTHLY_NTH_WEEKDAY
+        )
+        assertTrue(RecurrenceUtils.occursOn(note, dayMillis(2026, Calendar.NOVEMBER, 13))) // 2nd Friday of Nov
+        assertFalse(RecurrenceUtils.occursOn(note, dayMillis(2026, Calendar.NOVEMBER, 6))) // 1st Friday
+        assertFalse(RecurrenceUtils.occursOn(note, dayMillis(2026, Calendar.NOVEMBER, 20))) // 3rd Friday
+        assertFalse(RecurrenceUtils.occursOn(note, dayMillis(2026, Calendar.NOVEMBER, 11))) // right weekday count, wrong weekday (Wed)
+    }
+
+    @Test
+    fun `monthly nth weekday handles a 3rd-occurrence anchor too`() {
+        // Oct 19 2026 is the 3rd Monday of October.
+        val note = Note(
+            title = "t", body = "",
+            dueDate = dayMillis(2026, Calendar.OCTOBER, 19),
+            repetition = Note.REPEAT_MONTHLY_NTH_WEEKDAY
+        )
+        assertTrue(RecurrenceUtils.occursOn(note, dayMillis(2026, Calendar.NOVEMBER, 16))) // 3rd Monday of Nov
+        assertFalse(RecurrenceUtils.occursOn(note, dayMillis(2026, Calendar.NOVEMBER, 9))) // 2nd Monday
+    }
+
+    @Test
+    fun `first business day of the month skips weekends and later weekdays`() {
+        // Oct 1 2026 is a Thursday -- already the first business day of October.
+        val note = Note(
+            title = "t", body = "",
+            dueDate = dayMillis(2026, Calendar.OCTOBER, 1),
+            repetition = Note.REPEAT_FIRST_BUSINESS_DAY_OF_MONTH
+        )
+        assertTrue(RecurrenceUtils.occursOn(note, dayMillis(2026, Calendar.NOVEMBER, 2))) // Nov 1 is a Sunday
+        assertFalse(RecurrenceUtils.occursOn(note, dayMillis(2026, Calendar.NOVEMBER, 1))) // the Sunday itself
+        assertFalse(RecurrenceUtils.occursOn(note, dayMillis(2026, Calendar.NOVEMBER, 3))) // a weekday, but not the first
+        assertTrue(RecurrenceUtils.occursOn(note, dayMillis(2026, Calendar.DECEMBER, 1))) // Dec 1 is itself a Tuesday
+    }
+
     // nextOccurrenceOnOrAfter backs NoteReminderScheduler: it's what finds the next moment to
     // fire a recurring note's exact-time alarm at, so an off-by-one here means that alarm either
     // fires on the wrong day or (worse) never gets rescheduled at all.

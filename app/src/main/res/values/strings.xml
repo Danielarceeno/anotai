@@ -204,5 +204,7 @@
         <item>Bi-weekly</item>
         <item>Monthly</item>
         <item>Yearly</item>
+        <item>Monthly, same week + weekday (e.g. 2nd Friday)</item>
+        <item>First business day of the month</item>
     </string-array>
 </resources>

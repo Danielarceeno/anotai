@@ -49,12 +49,14 @@
         android:layout_height="wrap_content"
         android:orientation="vertical" />
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/addButton"
-        style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_height="52dp"
+        android:layout_marginTop="12dp"
+        app:cornerRadius="26dp"
+        app:icon="@android:drawable/ic_input_add"
+        app:iconGravity="textStart"
         android:text="@string/day_notes_add" />
 
 </LinearLayout>

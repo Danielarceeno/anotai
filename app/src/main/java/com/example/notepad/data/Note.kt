@@ -81,5 +81,15 @@ data class Note(
         const val REPEAT_BIWEEKLY = 4
         const val REPEAT_MONTHLY = 5
         const val REPEAT_YEARLY = 6
+        /** E.g. "every 2nd Friday of the month" -- both the weekday and which occurrence of it
+         *  (1st..5th) are derived from [dueDate] itself, not stored separately: the note's own
+         *  anchor date on the day it's created already encodes both (see RecurrenceUtils
+         *  .occursOn). Appended after [REPEAT_YEARLY] rather than inserted earlier in this list,
+         *  since existing notes' [repetition] values are plain ints already persisted in the
+         *  database -- renumbering would silently change what they mean. */
+        const val REPEAT_MONTHLY_NTH_WEEKDAY = 7
+        /** The first Mon-Fri day of every month (no holiday calendar -- "business day" here just
+         *  means "not a weekend", same definition [REPEAT_EVERY_WEEKDAY] already uses). */
+        const val REPEAT_FIRST_BUSINESS_DAY_OF_MONTH = 8
     }
 }

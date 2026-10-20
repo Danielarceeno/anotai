@@ -204,5 +204,7 @@
         <item>Quinzenalmente</item>
         <item>Mensalmente</item>
         <item>Anualmente</item>
+        <item>Mensal, mesma semana + dia (ex: 2ª sexta-feira)</item>
+        <item>Primeiro dia útil do mês</item>
     </string-array>
 </resources>
