@@ -9,6 +9,6 @@
     <color name="on_surface">#F0F0F0</color>
     <color name="on_surface_variant">#9AA0A6</color>
     <color name="toolbar_background">#262626</color>
-    <color name="dialog_background">#262626</color>
+    <color name="dialog_background">#3A3A3A</color>
     <color name="calendar_grid_line">#26FFFFFF</color>
 </resources>

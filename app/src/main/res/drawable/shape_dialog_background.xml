@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A plain @color/dialog_background fill (used directly as a layout's android:background)
+     paints flush to the view's square bounds, so the dialog read as a hard-cornered rectangle
+     instead of the rounded panel Material dialogs are meant to look like. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/dialog_background" />
+    <corners android:radius="20dp" />
+</shape>

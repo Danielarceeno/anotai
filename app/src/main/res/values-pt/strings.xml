@@ -18,7 +18,7 @@
     <string name="menu_calendar">Calendário</string>
     <string name="menu_notes">Notas</string>
     <string name="calendar_title">Anotaí</string>
-    <string name="day_notes_add">Adicionar</string>
+    <string name="day_notes_add">Criar</string>
     <string name="mark_done">Marcar como concluída</string>
     <string name="previous_month">Mês anterior</string>
     <string name="next_month">Próximo mês</string>
