@@ -125,7 +125,6 @@
     <string name="settings_calendar_title">Calendar</string>
     <string name="settings_notifications_section_title">Notifications</string>
     <string name="settings_notifications_title">Reminder notifications</string>
-    <string name="settings_reminder_time_title">Daily reminder time</string>
     <string name="settings_organization_title">Organization</string>
     <string name="settings_folders_title">Folders</string>
     <string name="settings_trash_title">Trash</string>

@@ -125,7 +125,6 @@
     <string name="settings_calendar_title">Calendário</string>
     <string name="settings_notifications_section_title">Notificações</string>
     <string name="settings_notifications_title">Notificações de lembrete</string>
-    <string name="settings_reminder_time_title">Horário do lembrete diário</string>
     <string name="settings_organization_title">Organização</string>
     <string name="settings_folders_title">Pastas</string>
     <string name="settings_trash_title">Lixeira</string>

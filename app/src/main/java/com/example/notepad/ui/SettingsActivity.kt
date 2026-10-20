@@ -1,6 +1,5 @@
 package com.example.notepad.ui
 
-import android.app.TimePickerDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -19,10 +18,8 @@ import com.example.notepad.data.drive.DriveBackupHelper
 import com.example.notepad.databinding.ActivitySettingsBinding
 import com.example.notepad.databinding.DialogSetPinBinding
 import com.example.notepad.notification.ReminderPrefs
-import com.example.notepad.notification.ReminderScheduler
 import com.example.notepad.security.SecurityPrefs
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 /** One screen for everything that isn't a note: reminder time, folders, trash, backup, PIN lock. */
 class SettingsActivity : AppCompatActivity() {
@@ -62,9 +59,6 @@ class SettingsActivity : AppCompatActivity() {
                     .cancel(com.example.notepad.notification.ReminderNotifier.NOTIFICATION_ID)
             }
         }
-
-        updateReminderTimeText()
-        binding.reminderTimeRow.setOnClickListener { showTimePicker() }
 
         binding.foldersRow.setOnClickListener { startActivity(Intent(this, FoldersActivity::class.java)) }
         binding.trashRow.setOnClickListener { startActivity(Intent(this, TrashActivity::class.java)) }
@@ -171,26 +165,6 @@ class SettingsActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.reminder_cancel, null)
             .show()
-    }
-
-    private fun updateReminderTimeText() {
-        val hour = ReminderPrefs.getHour(this)
-        val minute = ReminderPrefs.getMinute(this)
-        binding.reminderTimeValue.text = String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
-    }
-
-    private fun showTimePicker() {
-        TimePickerDialog(
-            this,
-            { _, hour, minute ->
-                ReminderPrefs.setTime(this, hour, minute)
-                ReminderScheduler.scheduleNext(this)
-                updateReminderTimeText()
-            },
-            ReminderPrefs.getHour(this),
-            ReminderPrefs.getMinute(this),
-            true
-        ).show()
     }
 
     private fun exportTo(uri: Uri) {
