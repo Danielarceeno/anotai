@@ -34,6 +34,14 @@ import org.junit.runner.RunWith
  * already created with the same request code and a matching [Intent.filterEquals] (which compares
  * the target component, not extras) -- a lookup built against the *other* screen's class
  * reliably comes back null.
+ *
+ * A PendingIntent stays registered with the system until explicitly cancelled -- it isn't reset
+ * by [TestPrereqs.resetAppState] (that only touches this app's own DB/prefs), so without
+ * [resetState]'s explicit [PendingIntent.cancel] calls below, a PendingIntent created by an
+ * *earlier* test method here (same request code, same target) would still satisfy a
+ * [PendingIntent.FLAG_NO_CREATE] lookup in a *later* method regardless of that method's own due
+ * notes -- caught on CI as `severalNotesDue_fallsBackToTheCalendar` finding a stale
+ * [NoteEditorActivity]-targeting match left over from `exactlyOneNoteDue_opensThatNoteDirectly`.
  */
 @RunWith(AndroidJUnit4::class)
 class ReminderNotifierSingleNoteOpensNoteTest {
@@ -53,6 +61,10 @@ class ReminderNotifierSingleNoteOpensNoteTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val db = AppDatabase.getInstance(context)
         repository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())
+        // See this class's doc comment: a PendingIntent from a previous test method otherwise
+        // outlives it and leaks into this one.
+        pendingIntentTargeting(context, NoteEditorActivity::class.java)?.cancel()
+        pendingIntentTargeting(context, CalendarActivity::class.java)?.cancel()
     }
 
     private fun todayStart(): Long = Calendar.getInstance().apply {

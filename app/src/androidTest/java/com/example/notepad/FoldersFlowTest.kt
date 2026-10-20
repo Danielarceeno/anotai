@@ -24,6 +24,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 
 /**
@@ -36,19 +37,29 @@ import org.junit.runner.RunWith
  * (e.g. "Add folder" is both), so a plain `withText(...)` match would be ambiguous between the
  * title TextView and the button -- disambiguated below by also requiring the view to be a
  * [android.widget.Button].
+ *
+ * [TestPrereqs.resetStateRule] (not a plain `@Before`) is chained to run *before*
+ * [ActivityScenarioRule] launches the Activity -- a plain `@Before` runs too late for that (see
+ * [CalendarActivityTest]'s own doc comment for the same fix): FoldersActivity's `onCreate`
+ * registers `repository.observeAll().observe(...)` immediately, and a leftover folder from a
+ * previous test method in this same class (the DB is a process-wide singleton, not reset between
+ * methods on its own) would render its row once before the clear, racing the then-fresh row's
+ * own DiffUtil update and occasionally leaving both rows' `deleteButton` attached at once --
+ * exactly the `AmbiguousViewMatcherException` this was caught by.
  */
 @RunWith(AndroidJUnit4::class)
 class FoldersFlowTest {
 
+    private val activityRule = ActivityScenarioRule(FoldersActivity::class.java)
+
     @get:Rule
-    val activityRule = ActivityScenarioRule(FoldersActivity::class.java)
+    val ruleChain: RuleChain = RuleChain.outerRule(TestPrereqs.resetStateRule()).around(activityRule)
 
     private lateinit var noteRepository: NoteRepository
     private lateinit var folderRepository: FolderRepository
 
     @Before
-    fun resetState() {
-        TestPrereqs.resetAppState()
+    fun setUpRepositories() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val db = AppDatabase.getInstance(context)
         noteRepository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())

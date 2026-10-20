@@ -86,61 +86,51 @@ library).
   normal save path and would catch a *total* regression (note never saves at all), but not the
   specific race this fix addresses.
 
-## CI: why `instrumented-tests` hasn't been confirmed passing
+## CI: why `instrumented-tests` was failing (resolved)
 
-**I could not inspect the actual GitHub Actions run** for this: the `gh` CLI isn't installed in
-this environment, and `https://api.github.com/repos/Danielarceeno/anotai/actions/runs` returns a
-plain `404` to an unauthenticated request -- consistent with the repository being private (GitHub
-returns 404 rather than 403 for a private repo to avoid confirming it exists). I didn't attempt
-to extract a token from the local git credential store to work around that.
+Couldn't inspect the actual GitHub Actions run at first: the repo was private and the `gh` CLI
+wasn't installed, so `https://api.github.com/repos/Danielarceeno/anotai/actions/runs` returned a
+plain `404`. As a local substitute, `./gradlew connectedDebugAndroidTest` was run against a real
+device connected over Wi-Fi ADB -- that failed before any test even started
+(`INSTALL_FAILED_USER_RESTRICTED`, an Onyx Boox-specific install-confirmation policy, unrelated to
+CI, which has no physical user to prompt).
 
-As the closest available substitute, I ran the exact command the CI job runs
-(`./gradlew connectedDebugAndroidTest`) against a real device connected over Wi-Fi ADB. That run
-failed before any test even started:
+The repo was then made public and `gh auth login` run, which made the real logs readable. The
+emulator itself was never the problem: it boots fine (`api-level: 30`/`target: default`/`arch:
+x86_64`, ~1.5 minutes to boot), and 31 instrumented tests actually ran. **Three genuinely failed**,
+all three caused by this session's own new tests, not by anything pre-existing or CI-environment-specific:
 
-```
-Exception thrown during onBeforeAll invocation of plugin AndroidTestApkInstallerPlugin:
-INSTALL_FAILED_USER_RESTRICTED: Install canceled by user
-```
+1. **`FoldersFlowTest.deletingAFolder_keepsItsNotesButClearsTheirFolder`** --
+   `AmbiguousViewMatcherException`, two `deleteButton` views matched at once. Root cause: a plain
+   `@Before` runs *after* `ActivityScenarioRule` has already launched the Activity, so
+   `FoldersActivity`'s `onCreate` (which immediately subscribes to `FolderRepository.observeAll()`)
+   could render a leftover folder row from an *earlier test method in the same class* (the Room DB
+   is a process-wide singleton, not reset between methods on its own) before `resetAppState()`
+   cleared it moments later -- racing that stale row's removal against the fresh one's own insert.
+   **Fix**: switched to `RuleChain.outerRule(TestPrereqs.resetStateRule()).around(activityRule)`,
+   the pattern `CalendarActivityTest`/`SearchShowsAllNotesTest` already use for the exact same
+   reason. Applied to `TrashFlowTest` too, which has the identical structure (didn't fail this run,
+   but was equally exposed).
+2. **`ReminderNotifierSingleNoteOpensNoteTest.severalNotesDue_fallsBackToTheCalendar`** --
+   expected no `NoteEditorActivity`-targeting `PendingIntent` to exist, found one anyway. Root
+   cause: a `PendingIntent` stays registered with the system until explicitly cancelled;
+   `exactlyOneNoteDue_opensThatNoteDirectly` (same class, same request code/target, ran first)
+   left one behind that the later method's `FLAG_NO_CREATE` lookup still matched. **Fix**: cancel
+   both candidate PendingIntents in `@Before` so every test method starts from a clean slate
+   regardless of execution order.
+3. **`SettingsThemeTest.pickingDarkTheme_updatesTheSummaryRow`** -- `IllegalStateException: Must
+   be called from main thread`, at `Activity.recreate()`. This is a *pre-existing* test this
+   session didn't write, but newly broken by one this session did: `SecurityLockFlowTest
+   .correctPin_unlocksTheApp` taps "unlock", which (via `LockActivity.unlock()`) starts a real
+   `CalendarActivity` that no `ActivityScenarioRule` manages or ever finishes. Left running into
+   later tests in the same instrumentation process, that orphaned `CalendarActivity` was still
+   alive when `SettingsThemeTest` later changed the theme -- `AppCompatDelegate
+   .setDefaultNightMode()` calls `recreate()` on *every* currently-tracked AppCompat activity, and
+   something about that orphaned instance's state made that specific call land off the main
+   thread. **Fix**: `SecurityLockFlowTest`'s `@After` now uses
+   `ActivityLifecycleMonitorRegistry`/`Stage.RESUMED` to find and `finish()` any `CalendarActivity`
+   it leaked, so nothing outlives the test.
 
-This is the device (an Onyx Boox e-ink tablet) requiring a tap on its own screen to confirm every
-app install over ADB -- a security prompt specific to that physical hardware, not something
-GitHub's `ubuntu-latest` + `reactivecircus/android-emulator-runner` emulator has (there's no
-physical user to prompt). **It says nothing about why the real CI job fails or hasn't run**; it's
-just the local stand-in hitting its own, unrelated obstacle.
-
-Retried once after asking the device's owner to unlock the screen; it failed the same way again
-(`INSTALL_FAILED_USER_RESTRICTED`, this time on the plain debug APK, not even the test APK) --
-this isn't a one-off dialog that was simply missed, it's a persistent device policy. Likely a
-Boox-specific setting (install verification / "Unknown sources" confirmation required per-install
-even over ADB) rather than anything in this project. Didn't keep retrying past this -- an actual
-device-level setting change is what's needed, not another `./gradlew` run.
-
-### Static read of `.github/workflows/ci.yml`
-
-The workflow itself looks reasonable on paper: `api-level: 30`, `target: default`, `arch:
-x86_64`, `disable-animations: true` (addresses the "Animations enabled" Espresso failure already
-documented as a real local issue), and the KVM group-permission workaround GitHub-hosted runners
-need for hardware-accelerated emulation. Candidate causes for a first real failure, most to least
-likely given this app's dependencies:
-
-1. **`play-services-auth` / Google Sign-In on a `default` (non-`google_apis`) system image.**
-   `DriveSyncActivityTest` only exercises the signed-out path, but `DriveBackupHelper.signInClient`
-   and `GoogleSignIn.getLastSignedInAccount` still touch Play Services classes at class-load time.
-   A `default` AOSP image has no Play Services APK at all (unlike `google_apis`); if any of that
-   throws instead of degrading to "not signed in", every test that launches an Activity touching
-   those paths indirectly (most of them, via the app's own `onCreate` chains) could fail. This is
-   the single highest-value thing to try first: switch the workflow's `target` to `google_apis`.
-2. **Emulator boot timeout / cold cache on first run.** `reactivecircus/android-emulator-runner`
-   caches the AVD snapshot across runs, but a *first-ever* run has nothing to restore from and can
-   be slow enough to trip the action's own boot-timeout default, especially stacked with 21
-   instrumented tests.
-3. **SQLCipher's native library load on the CI runner's x86_64 ABI** -- works locally and on
-   physical arm64 hardware per `DEV_LOG.md`; an x86_64 emulator is a different ABI path through the
-   same `net.zetetic:android-database-sqlcipher` native bindings, worth confirming explicitly
-   rather than assuming it's identical.
-
-None of these are fixed here, since none can be verified without an actual failing log to read.
-**Recommended next step**: either install/authenticate the `gh` CLI (`gh auth login`) so a future
-session can pull the real run's log with `gh run view --log-failed`, or paste the failing job's
-log output directly.
+All three were real bugs in the new tests' own isolation, not the app or the CI environment --
+exactly the kind of thing a first real run against a slower, differently-timed emulator surfaces
+that a fast local pass might not.

@@ -21,6 +21,7 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 
 /**
@@ -32,18 +33,24 @@ import org.junit.runner.RunWith
  * Both confirmation dialogs set their title and positive button to the *same* string resource
  * ("Delete forever" is both), so a plain `withText(...)` match would be ambiguous -- same fix as
  * [FoldersFlowTest].
+ *
+ * [TestPrereqs.resetStateRule] (not a plain `@Before`) is chained to run *before*
+ * [ActivityScenarioRule] launches the Activity, for the same reason [FoldersFlowTest] needs it --
+ * see that class's doc comment (caught there as a real `AmbiguousViewMatcherException` on a CI
+ * run; applied here too since this test has the identical structure/risk).
  */
 @RunWith(AndroidJUnit4::class)
 class TrashFlowTest {
 
+    private val activityRule = ActivityScenarioRule(TrashActivity::class.java)
+
     @get:Rule
-    val activityRule = ActivityScenarioRule(TrashActivity::class.java)
+    val ruleChain: RuleChain = RuleChain.outerRule(TestPrereqs.resetStateRule()).around(activityRule)
 
     private lateinit var repository: NoteRepository
 
     @Before
-    fun resetState() {
-        TestPrereqs.resetAppState()
+    fun setUpRepository() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val db = AppDatabase.getInstance(context)
         repository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())

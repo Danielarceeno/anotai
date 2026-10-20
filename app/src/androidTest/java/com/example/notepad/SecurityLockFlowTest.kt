@@ -12,8 +12,11 @@ import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import com.example.notepad.security.LockState
 import com.example.notepad.security.SecurityPrefs
+import com.example.notepad.ui.CalendarActivity
 import com.example.notepad.ui.LockActivity
 import org.junit.After
 import org.junit.Assert.assertFalse
@@ -23,16 +26,21 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * [LockActivity] -- the PIN gate in front of [com.example.notepad.ui.CalendarActivity] -- had no
- * automated coverage: a wrong PIN must show the error and stay locked, a correct one must
- * actually unlock ([LockState]). The PIN is set directly via [SecurityPrefs] rather than through
- * Settings' own set-PIN dialog, since that dialog's own UI is a separate concern from whether
+ * [LockActivity] -- the PIN gate in front of [CalendarActivity] -- had no automated coverage: a
+ * wrong PIN must show the error and stay locked, a correct one must actually unlock
+ * ([LockState]). The PIN is set directly via [SecurityPrefs] rather than through Settings' own
+ * set-PIN dialog, since that dialog's own UI is a separate concern from whether
  * [SecurityPrefs.checkPin]'s result actually gates this screen.
  *
- * The correct-PIN case ends by starting [com.example.notepad.ui.CalendarActivity] as a real side
- * effect of unlocking (see [LockActivity.unlock]) -- the notification-permission rule below is
- * granted up front for the same reason [CalendarActivityTest] grants it: so that screen's own
- * `onCreate` can't pop a system permission dialog Espresso has no way to dismiss.
+ * The correct-PIN case ends by starting [CalendarActivity] as a real side effect of unlocking
+ * (see [LockActivity.unlock]) -- the notification-permission rule below is granted up front for
+ * the same reason [CalendarActivityTest] grants it: so that screen's own `onCreate` can't pop a
+ * system permission dialog Espresso has no way to dismiss. That [CalendarActivity] instance isn't
+ * managed by any [ActivityScenarioRule] here, so [cleanUp] finishes it explicitly -- left alone,
+ * it stayed alive into later tests in the same instrumentation process and broke one of them: a
+ * later theme change ([SettingsThemeTest], via `AppCompatDelegate.setDefaultNightMode` ->
+ * `Activity.recreate()` on every still-tracked AppCompat activity) hit this orphaned instance and
+ * threw `IllegalStateException: Must be called from main thread`, caught on a real CI run.
  */
 @RunWith(AndroidJUnit4::class)
 class SecurityLockFlowTest {
@@ -58,6 +66,11 @@ class SecurityLockFlowTest {
     fun cleanUp() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         SecurityPrefs.clearPin(context)
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
+                .filterIsInstance<CalendarActivity>()
+                .forEach { it.finish() }
+        }
     }
 
     @Test
