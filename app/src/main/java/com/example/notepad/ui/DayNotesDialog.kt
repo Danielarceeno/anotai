@@ -44,6 +44,11 @@ object DayNotesDialog {
         binding.dayTitle.text = dayLabel
 
         val dialog = AlertDialog.Builder(context).setView(binding.root).create()
+        // AlertDialog's window paints its own default (square) panel background behind whatever
+        // setView() provides, so the content view's rounded corners (shape_dialog_background)
+        // were invisible -- still square at the window's own edge. A transparent window
+        // background removes that layer entirely, letting the content view's own shape show.
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
 
         binding.prevDayButton.setOnClickListener {
             dialog.dismiss()
