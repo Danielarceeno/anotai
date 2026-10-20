@@ -38,6 +38,13 @@ class SettingsThemeTest {
 
     @After
     fun restoreSystemTheme() {
-        ThemePrefs.setMode(InstrumentationRegistry.getInstrumentation().targetContext, ThemePrefs.MODE_SYSTEM)
+        // ThemePrefs.setMode -> AppCompatDelegate.setDefaultNightMode() can recreate() any
+        // currently-active AppCompat activity (here, this test's own still-open SettingsActivity,
+        // since this @After runs before ActivityScenarioRule's own teardown) -- Activity.recreate
+        // asserts it's called on the main thread, which a plain JUnit @After is not. Caught on a
+        // real CI run as `IllegalStateException: Must be called from main thread`.
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ThemePrefs.setMode(InstrumentationRegistry.getInstrumentation().targetContext, ThemePrefs.MODE_SYSTEM)
+        }
     }
 }

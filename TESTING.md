@@ -193,3 +193,47 @@ The real lesson underneath both round 2 and round 3: `ActivityScenario.launch(..
 `ActivityScenarioRule` are *not* interchangeable call-for-call -- the rule's automatic lifecycle
 management is easy to take for granted until a plain `.launch()` call is substituted in without
 also taking on the responsibility of closing it.
+
+### Round 4: an infra flake, then the actual, much simpler root cause
+
+The very next run failed before any test ran at all: `sdkmanager --install emulator` hit `Error
+on ZipFile unknown archive` -- a corrupted/incomplete download on GitHub's runner, unrelated to
+this project. `gh run rerun --failed` re-ran just that job; it failed again, same
+`SettingsThemeTest` error as every round before.
+
+At this point all three plausible leaked-Activity sources had already been closed off (rounds 1
+and 3), yet the exact same failure persisted -- meaning the leaked-Activity theory, while each
+individual fix was still correct and worth keeping, was never actually *this* failure's cause.
+Downloading the full HTML test report (`gh run download -n instrumented-test-report`, which needed
+the authenticated `gh` CLI -- a plain curl download of the artifact zip returns `401` even for a
+public repo) finally showed the complete stack trace instead of the 2-line summary `--log-failed`
+truncates to:
+
+```
+java.lang.IllegalStateException: Must be called from main thread
+	at android.app.Activity.recreate(Activity.java:6346)
+	at androidx.core.app.ActivityCompat.recreate(ActivityCompat.java:657)
+	at androidx.appcompat.app.AppCompatDelegateImpl.updateAppConfiguration(...)
+	...
+	at androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.java:707)
+	at com.example.notepad.ui.ThemePrefs.applyMode(ThemePrefs.kt:29)
+	at com.example.notepad.ui.ThemePrefs.setMode(ThemePrefs.kt:21)
+	at com.example.notepad.SettingsThemeTest.restoreSystemTheme(SettingsThemeTest.kt:41)
+```
+
+The actual root cause the whole time: `SettingsThemeTest`'s own `@After` method calls
+`ThemePrefs.setMode()` directly -- and a plain JUnit `@After` runs on the **instrumentation**
+thread, not the main/UI thread. `AppCompatDelegate.setDefaultNightMode()` can call `recreate()`
+on any currently-active AppCompat activity (here, this same test's own `SettingsActivity`, since
+`@After` methods run *before* `ActivityScenarioRule`'s own teardown closes it), and
+`Activity.recreate()` asserts it's called on the main thread. This is a genuinely **pre-existing**
+bug in a test this session didn't write, that had simply never been exercised against a real CI
+run before (consistent with `DEV_LOG.md` Session 6's own admission that this suite was "not yet
+verified against a real GitHub Actions run"). **Fix**: wrap the `@After` body in
+`InstrumentationRegistry.getInstrumentation().runOnMainSync { ... }`.
+
+**Lesson for next time**: `--log-failed`'s truncated 1-2 line stack traces were enough to point at
+the right symptom (`Activity.recreate()`, "must be called from main thread") but actively
+misleading about the cause -- they look identical whether the problem is a leaked Activity from
+a *different* test or (as it turned out) the failing test's own cleanup code running off the main
+thread. Pulling the full HTML report earlier would have found this in one round instead of four.
