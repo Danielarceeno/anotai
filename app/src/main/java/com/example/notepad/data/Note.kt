@@ -11,7 +11,14 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "notes",
-    indices = [Index(value = ["folderId", "activeState"]), Index(value = ["dueDate"])]
+    indices = [
+        Index(value = ["folderId", "activeState"]),
+        Index(value = ["dueDate"]),
+        // folderId+activeState above doesn't help a query filtering on activeState alone
+        // (folderId=0, "every folder") -- observeAll/getAllForExport/getAllActiveIds/the trash
+        // screen all do exactly that, and previously fell back to a full table scan for it.
+        Index(value = ["activeState"])
+    ]
 )
 data class Note(
     @PrimaryKey(autoGenerate = true)

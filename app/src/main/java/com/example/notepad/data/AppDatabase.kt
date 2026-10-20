@@ -11,7 +11,7 @@ import kotlinx.coroutines.runBlocking
 import net.sqlcipher.database.SQLiteDatabase
 import net.sqlcipher.database.SupportFactory
 
-@Database(entities = [Note::class, Folder::class, NoteTombstone::class], version = 13, exportSchema = false)
+@Database(entities = [Note::class, Folder::class, NoteTombstone::class], version = 14, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun folderDao(): FolderDao
@@ -142,6 +142,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Indexes [Note.activeState] alone -- see [Note]'s `@Entity` doc for why the existing
+         *  `(folderId, activeState)` index doesn't help a query filtering on activeState alone
+         *  (the main notes list's "every folder" case, the trash screen, export/merge). A fresh
+         *  install gets this for free from the `@Entity` annotation; only an existing database
+         *  being upgraded needs it created explicitly. */
+        private val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_activeState ON notes(activeState)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: buildDatabase(context.applicationContext).also { instance = it }
@@ -158,7 +169,7 @@ abstract class AppDatabase : RoomDatabase() {
 
             return Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
                 .openHelperFactory(SupportFactory(SQLiteDatabase.getBytes(passphrase)))
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .addCallback(ftsCallback)
                 .fallbackToDestructiveMigration()
                 .build()
@@ -187,7 +198,7 @@ abstract class AppDatabase : RoomDatabase() {
                 dbFile.copyTo(context.getDatabasePath(legacyName), overwrite = true)
 
                 val legacyDb = Room.databaseBuilder(context, AppDatabase::class.java, legacyName)
-                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                     .fallbackToDestructiveMigration()
                     .build()
                 val (folders, notes) = runBlocking {
