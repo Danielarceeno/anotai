@@ -22,7 +22,11 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.example.notepad.data.NoteRepository
+import com.example.notepad.notification.NoteReminderScheduler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
@@ -183,6 +187,58 @@ object DriveBackupHelper {
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    /** Serializes every call to [syncNow] process-wide -- see its doc for why. */
+    private val syncMutex = Mutex()
+
+    data class SyncResult(val notes: List<Note>, val addedCount: Int, val hadRemoteBackup: Boolean)
+
+    /**
+     * The one place every Drive sync path goes through: the manual "Sync"/"Restore" buttons in
+     * [com.example.notepad.ui.DriveSyncActivity], the first-sign-in backup, and
+     * [DriveBackupWorker]'s periodic and immediate (triggered right after creating a note) runs.
+     * A single process-wide [Mutex] serializes them.
+     *
+     * Without it, two syncs running at the same moment -- e.g. the periodic worker firing right
+     * as a just-created note's [triggerImmediateBackup] run kicks off, or that happening while
+     * the user is also sitting on the sync screen tapping the button -- could each call [restore]
+     * before either has called [backup] with its own result, so both independently decide the
+     * same remote-only note needs inserting locally and both call [NoteRepository.insert] for it:
+     * two local rows, same uuid, genuinely duplicated. [mergeByUuid]'s own `distinctBy` only
+     * guards against a single read seeing a duplicate *within* one remote file; it can't do
+     * anything about two overlapping reads/writes racing each other.
+     */
+    suspend fun syncNow(context: Context, repository: NoteRepository, account: GoogleSignInAccount): SyncResult =
+        syncMutex.withLock {
+            val local = repository.getAllForExport()
+            val remoteData = restore(context, account)
+            val merged = if (remoteData != null) {
+                val tombstones = repository.mergeTombstones(remoteData.tombstones)
+                val result = mergeByUuid(local, remoteData.notes, tombstones)
+                applyMergeResult(context, repository, result)
+                result.notes
+            } else {
+                local
+            }
+            backup(context, account, merged, repository.getTombstones())
+            SyncResult(merged, merged.size - local.size, hadRemoteBackup = remoteData != null)
+        }
+
+    /** Applies a [mergeByUuid] result locally: a merged note that kept an existing local id is an
+     *  update (whether its content changed or not, which is cheap and simpler than diffing); one
+     *  with `id == 0` is a note this device didn't have yet. [MergeResult.locallyDeletedIds] are
+     *  trashed too -- notes this device still had active, but that the merge found a newer
+     *  tombstone for from another device. */
+    private suspend fun applyMergeResult(context: Context, repository: NoteRepository, result: MergeResult) {
+        for (note in result.notes) {
+            val saved = if (note.id == 0L) note.copy(id = repository.insert(note)) else note.also { repository.update(it) }
+            NoteReminderScheduler.schedule(context, saved)
+        }
+        for (id in result.locallyDeletedIds) {
+            repository.trashLocally(id)
+            NoteReminderScheduler.cancel(context, id)
+        }
+    }
 
     suspend fun backup(context: Context, account: GoogleSignInAccount, notes: List<Note>, tombstones: Map<String, Long>) {
         withContext(Dispatchers.IO) {

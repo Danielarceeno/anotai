@@ -22,23 +22,9 @@ class DriveBackupWorker(context: Context, params: WorkerParameters) : CoroutineW
             // Merge (by Note.uuid, newer modifiedDate wins per note) rather than blindly
             // overwrite: another device may have added or edited notes since this device's last
             // sync, and this runs unattended with no UI to ask the user which version should win.
-            val local = repository.getAllForExport()
-            val remoteData = DriveBackupHelper.restore(applicationContext, account)
-            val merged = if (remoteData != null) {
-                val tombstones = repository.mergeTombstones(remoteData.tombstones)
-                val result = DriveBackupHelper.mergeByUuid(local, remoteData.notes, tombstones)
-                for (id in result.locallyDeletedIds) {
-                    repository.trashLocally(id)
-                    com.example.notepad.notification.NoteReminderScheduler.cancel(applicationContext, id)
-                }
-                result.notes
-            } else {
-                local
-            }
-            for (note in merged) {
-                if (note.id == 0L) repository.insert(note) else repository.update(note)
-            }
-            DriveBackupHelper.backup(applicationContext, account, merged, repository.getTombstones())
+            // syncNow's own Mutex also keeps this from racing a concurrent in-app sync (or the
+            // periodic and immediate work requests racing each other) into duplicating notes.
+            DriveBackupHelper.syncNow(applicationContext, repository, account)
             Result.success()
         } catch (e: Exception) {
             // Transient (network, token refresh, Drive outage) -- WorkManager will retry with

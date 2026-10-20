@@ -121,26 +121,15 @@ class DriveSyncActivity : AppCompatActivity() {
         DriveBackupHelper.signOut(this) { updateUi() }
     }
 
-    /** Merges this device's notes against whatever's currently in Drive (per-note, by
-     *  [com.example.notepad.data.Note.uuid] -- see [DriveBackupHelper.mergeByUuid]) before
-     *  writing anything, so neither side's independent changes since the last sync get silently
-     *  thrown away by the other. */
+    /** Delegates to [DriveBackupHelper.syncNow], whose Mutex also keeps this from racing a
+     *  concurrent background sync (periodic, or the one triggered right after creating a note)
+     *  into duplicating notes -- see its doc. */
     private fun backupToDrive(account: GoogleSignInAccount) {
         if (isSyncing) return
         setSyncing(true)
         lifecycleScope.launch {
             try {
-                val local = repository.getAllForExport()
-                val remoteData = DriveBackupHelper.restore(applicationContext, account)
-                val merged = if (remoteData != null) {
-                    val tombstones = repository.mergeTombstones(remoteData.tombstones)
-                    val result = DriveBackupHelper.mergeByUuid(local, remoteData.notes, tombstones)
-                    applyMergeResult(result)
-                    result.notes
-                } else {
-                    local
-                }
-                DriveBackupHelper.backup(applicationContext, account, merged, repository.getTombstones())
+                DriveBackupHelper.syncNow(applicationContext, repository, account)
                 updateUi()
                 Toast.makeText(this@DriveSyncActivity, R.string.drive_backup_success, Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
@@ -151,26 +140,24 @@ class DriveSyncActivity : AppCompatActivity() {
         }
     }
 
-    /** Same per-note merge as [backupToDrive], then also pushes the merged result back to Drive
-     *  so a note only this device had isn't left out of the next device's restore either. */
+    /** Same [DriveBackupHelper.syncNow] call as [backupToDrive] -- merging already pushes the
+     *  result back to Drive too, so a note only this device had isn't left out of the next
+     *  device's restore either. Kept as a separate menu action (rather than folded into the one
+     *  button) because its empty-backup and "N notes added" messaging reads differently from a
+     *  plain sync. */
     private fun restoreFromDrive() {
         val account = DriveBackupHelper.lastSignedInAccount(this) ?: return
         if (isSyncing) return
         setSyncing(true)
         lifecycleScope.launch {
             try {
-                val remoteData = DriveBackupHelper.restore(applicationContext, account)
-                if (remoteData == null) {
+                val result = DriveBackupHelper.syncNow(applicationContext, repository, account)
+                if (!result.hadRemoteBackup) {
                     Toast.makeText(this@DriveSyncActivity, R.string.drive_no_backup_found, Toast.LENGTH_SHORT).show()
                     return@launch
                 }
-                val local = repository.getAllForExport()
-                val tombstones = repository.mergeTombstones(remoteData.tombstones)
-                val result = DriveBackupHelper.mergeByUuid(local, remoteData.notes, tombstones)
-                applyMergeResult(result)
-                DriveBackupHelper.backup(applicationContext, account, result.notes, repository.getTombstones())
                 updateUi()
-                val added = result.notes.size - local.size
+                val added = result.addedCount
                 val message = resources.getQuantityString(R.plurals.import_success, added, added)
                 Toast.makeText(this@DriveSyncActivity, message, Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
@@ -178,22 +165,6 @@ class DriveSyncActivity : AppCompatActivity() {
             } finally {
                 setSyncing(false)
             }
-        }
-    }
-
-    /** Applies a [DriveBackupHelper.mergeByUuid] result locally: a merged note that kept an
-     *  existing local id is an update (whether its content changed or not, which is cheap and
-     *  simpler than diffing); one with `id == 0` is a note this device didn't have yet.
-     *  [DriveBackupHelper.MergeResult.locallyDeletedIds] are trashed too -- notes this device
-     *  still had active, but that the merge found a newer tombstone for from another device. */
-    private suspend fun applyMergeResult(result: DriveBackupHelper.MergeResult) {
-        for (note in result.notes) {
-            val saved = if (note.id == 0L) note.copy(id = repository.insert(note)) else note.also { repository.update(it) }
-            com.example.notepad.notification.NoteReminderScheduler.schedule(applicationContext, saved)
-        }
-        for (id in result.locallyDeletedIds) {
-            repository.trashLocally(id)
-            com.example.notepad.notification.NoteReminderScheduler.cancel(applicationContext, id)
         }
     }
 
