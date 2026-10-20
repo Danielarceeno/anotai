@@ -142,8 +142,6 @@
     <string name="settings_backup_frequency_title">Automatic backup frequency</string>
     <string name="backup_frequency_hours">Every %1$d hours</string>
     <string name="backup_frequency_daily">Once a day</string>
-    <string name="settings_remove_duplicates_title">Remove duplicate notes</string>
-    <string name="settings_remove_duplicates_subtitle">Cleans up notes that got duplicated by an old Drive sync bug</string>
     <string name="drive_signed_in_as">Signed in as %1$s</string>
     <string name="drive_backup_now">Back up now</string>
     <string name="drive_restore">Restore backup</string>
@@ -183,11 +181,6 @@
     <plurals name="bulk_delete_undo_message">
         <item quantity="one">%1$d note moved to trash</item>
         <item quantity="other">%1$d notes moved to trash</item>
-    </plurals>
-    <string name="duplicates_removed_none">No duplicates found</string>
-    <plurals name="duplicates_removed_message">
-        <item quantity="one">Removed %1$d duplicate note</item>
-        <item quantity="other">Removed %1$d duplicate notes</item>
     </plurals>
     <plurals name="import_success">
         <item quantity="one">%1$d note imported</item>

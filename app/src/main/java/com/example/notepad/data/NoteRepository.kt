@@ -136,26 +136,6 @@ class NoteRepository(
 
     suspend fun getAllForExport(): List<Note> = dao.getAllForExport()
 
-    /** Trashes every extra row sharing a [Note.uuid], keeping only the most recently modified
-     *  one per uuid -- for cleaning up duplicate notes already created by the
-     *  [com.example.notepad.data.drive.DriveBackupHelper.mergeByUuid] bug where a remote backup
-     *  file with a duplicate entry for the same note got restored onto a device that had neither
-     *  copy yet (that bug is now fixed, but already-duplicated notes from before the fix stay
-     *  duplicated until this runs once). Goes through [delete] (not a raw DAO call) so each
-     *  removed duplicate gets its own tombstone -- otherwise the very next Drive sync could just
-     *  resurrect it from the still-duplicated remote file. Returns how many rows were trashed. */
-    suspend fun deduplicateByUuid(): Int {
-        var trashedCount = 0
-        getAllForExport().groupBy { it.uuid }.values.forEach { group ->
-            if (group.size > 1) {
-                val keeper = group.maxBy { it.modifiedDate }
-                group.filterNot { it.id == keeper.id }.forEach { delete(it.id) }
-                trashedCount += group.size - 1
-            }
-        }
-        return trashedCount
-    }
-
     suspend fun getById(id: Long): Note? = dao.getById(id)
 
     fun observeAllReminders(): LiveData<List<Note>> = dao.observeAllReminders()
