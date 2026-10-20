@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.view.inputmethod.EditorInfo
 import android.widget.ImageView
 import android.widget.LinearLayout
 import androidx.activity.addCallback
@@ -76,6 +75,14 @@ class NoteEditorActivity : AppCompatActivity() {
             checklistAdapter.moveItem(viewHolder.bindingAdapterPosition, target.bindingAdapterPosition)
             return true
         }
+
+        // The trailing "add item" row (ChecklistAdapter.VIEW_TYPE_ADD) isn't a real item -- never
+        // a valid drag target, or moveItem would try to insert past the real items' bounds.
+        override fun canDropOver(
+            recyclerView: androidx.recyclerview.widget.RecyclerView,
+            current: androidx.recyclerview.widget.RecyclerView.ViewHolder,
+            target: androidx.recyclerview.widget.RecyclerView.ViewHolder
+        ): Boolean = target.itemViewType != ChecklistAdapter.VIEW_TYPE_ADD
 
         override fun onSwiped(viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder, direction: Int) {}
     })
@@ -183,19 +190,6 @@ class NoteEditorActivity : AppCompatActivity() {
         binding.checklistRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.checklistRecyclerView.adapter = checklistAdapter
         checklistTouchHelper.attachToRecyclerView(binding.checklistRecyclerView)
-
-        binding.newItemInput.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                val text = binding.newItemInput.text.toString()
-                if (text.isNotBlank()) {
-                    checklistAdapter.addItem(text)
-                    binding.newItemInput.text?.clear()
-                }
-                true
-            } else {
-                false
-            }
-        }
     }
 
     private fun applyTypeVisibility() {

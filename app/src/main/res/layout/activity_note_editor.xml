@@ -257,51 +257,14 @@
         android:orientation="vertical"
         android:visibility="gone">
 
+        <!-- The "add item" row is rendered inline as the RecyclerView's own trailing item
+             (ChecklistAdapter.VIEW_TYPE_ADD), not a separate bar here; see its doc. -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/checklistRecyclerView"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:paddingHorizontal="8dp" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginStart="32dp"
-            android:background="@color/checklist_item_divider" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="12dp">
-
-            <ImageView
-                android:id="@+id/newItemIcon"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:alpha="0.7"
-                android:contentDescription="@null"
-                android:src="@drawable/ic_add_circle"
-                app:tint="@color/note_editor_body_hint" />
-
-            <EditText
-                android:id="@+id/newItemInput"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="@android:color/transparent"
-                android:hint="@string/add_item_hint"
-                android:imeOptions="actionDone"
-                android:importantForAutofill="no"
-                android:inputType="text"
-                android:padding="16dp"
-                android:textColor="@color/note_editor_body_text"
-                android:textColorHint="@color/note_editor_body_hint"
-                android:textAppearance="?attr/textAppearanceBodyLarge" />
-
-        </LinearLayout>
 
     </LinearLayout>
 

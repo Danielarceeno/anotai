@@ -48,8 +48,10 @@ class CreateEditNoteFlowTest {
         onView(withId(R.id.optionChecklist)).perform(click())
 
         onView(withId(R.id.titleInput)).perform(typeText("Espresso checklist"))
-        onView(withId(R.id.newItemInput)).perform(typeText("first item"))
-        onView(withId(R.id.newItemInput)).perform(androidx.test.espresso.action.ViewActions.pressImeActionButton())
+        // The "add item" row is the checklist RecyclerView's own trailing item
+        // (ChecklistAdapter.VIEW_TYPE_ADD) now, not a separate always-visible input field.
+        onView(withId(R.id.newItemText)).perform(typeText("first item"))
+        onView(withId(R.id.newItemText)).perform(androidx.test.espresso.action.ViewActions.pressImeActionButton())
         onView(withId(R.id.doneButton)).perform(click())
 
         onView(withId(R.id.recyclerView)).check(
