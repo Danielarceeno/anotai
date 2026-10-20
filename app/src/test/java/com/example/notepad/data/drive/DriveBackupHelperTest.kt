@@ -139,4 +139,21 @@ class DriveBackupHelperTest {
         assertEquals(1, result.notes.size)
         assertTrue(result.locallyDeletedIds.isEmpty())
     }
+
+    // --- A remote backup file with a duplicate entry for the same uuid (e.g. written by an
+    // older, pre-merge version of the app) must not duplicate that note on every device that
+    // restores from it -- reported as "connecting Google Drive pulled everything duplicated".
+
+    @Test
+    fun `a remote-only note duplicated within the backup file is only added once`() {
+        val remote = listOf(
+            note("dup", id = 10, modifiedDate = 100, title = "first copy"),
+            note("dup", id = 20, modifiedDate = 100, title = "second copy")
+        )
+
+        val result = DriveBackupHelper.mergeByUuid(local = emptyList(), remote)
+
+        assertEquals(1, result.notes.size)
+        assertEquals("dup", result.notes.single().uuid)
+    }
 }

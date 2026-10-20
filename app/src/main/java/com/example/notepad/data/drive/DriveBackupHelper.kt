@@ -117,9 +117,17 @@ object DriveBackupHelper {
         // A remote-only note's `id` is some *other* device's local row id -- meaningless (and
         // potentially collision-prone) here, so it's reset to 0 like any other not-yet-inserted
         // Note, consistent with what a remote-wins match above already does via .copy(id = ...).
+        //
+        // distinctBy uuid: if [remote] itself has more than one entry for the same uuid (e.g. an
+        // older, pre-merge backup file that already had a duplicate note in it), every single one
+        // not yet matched by a local uuid used to pass this filter and get inserted as its own
+        // new note -- restoring onto a device that had neither copy yet duplicated every such
+        // note. The main merge loop above never had this problem since it's keyed one-per-local-
+        // note already; this is the one place a raw pass over [remote] needed the same guarantee.
         val remoteOnly = remote
             .filter { it.uuid !in localUuids }
             .filterNot { note -> tombstones[note.uuid]?.let { it >= note.modifiedDate } == true }
+            .distinctBy { it.uuid }
             .map { it.copy(id = 0L) }
         return MergeResult(merged + remoteOnly, locallyDeletedIds)
     }

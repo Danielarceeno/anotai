@@ -90,6 +90,8 @@ class SettingsActivity : AppCompatActivity() {
         updateBackupFrequencyText()
         binding.backupFrequencyRow.setOnClickListener { showBackupFrequencyPicker() }
 
+        binding.removeDuplicatesRow.setOnClickListener { removeDuplicateNotes() }
+
         binding.pinLockSwitch.isChecked = SecurityPrefs.isPinEnabled(this)
         updatePinDependentRows()
         binding.pinLockSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -252,6 +254,21 @@ class SettingsActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.reminder_cancel, null)
             .show()
+    }
+
+    /** One-time cleanup for notes duplicated by the (now-fixed) DriveBackupHelper.mergeByUuid
+     *  bug where a remote backup file with a duplicate entry for the same note got restored onto
+     *  a device that had neither copy yet. */
+    private fun removeDuplicateNotes() {
+        lifecycleScope.launch {
+            val removed = repository.deduplicateByUuid()
+            val message = if (removed == 0) {
+                getString(R.string.duplicates_removed_none)
+            } else {
+                resources.getQuantityString(R.plurals.duplicates_removed_message, removed, removed)
+            }
+            Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun updateDriveRow() {
