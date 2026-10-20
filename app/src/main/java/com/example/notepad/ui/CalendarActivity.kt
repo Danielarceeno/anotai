@@ -481,7 +481,9 @@ class CalendarActivity : AppCompatActivity() {
      *  currently-rendered grid. */
     private fun showDayDialog(dateMillis: Long) {
         selectedDayMillis = dateMillis
+        // Pinned first, same convention as the main notes list (NoteRepository.observeAllPaged).
         val notesForDay = allReminders.filter { RecurrenceUtils.occursOn(it, dateMillis) }
+            .sortedByDescending { it.pinned }
         val dayLabel = SimpleDateFormat("EEE, MMMM d", Locale.getDefault()).format(java.util.Date(dateMillis))
         val oneDayMillis = 24 * 60 * 60 * 1000L
 

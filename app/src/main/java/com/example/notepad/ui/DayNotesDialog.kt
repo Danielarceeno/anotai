@@ -128,6 +128,17 @@ object DayNotesDialog {
             }
 
             content.addView(title)
+            if (note.pinned) {
+                // Same star used for "pinned" in the main notes list (NoteAdapter) -- pinned
+                // notes used to show no distinction at all here, only in that list.
+                val pinIcon = android.widget.ImageView(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(dotSize, dotSize).apply { marginStart = rowPadding / 2 }
+                    setImageResource(R.drawable.ic_star_filled)
+                    contentDescription = context.getString(R.string.note_pinned)
+                    setColorFilter(context.getColor(R.color.on_surface_variant))
+                }
+                content.addView(pinIcon)
+            }
             if (note.repetition != Note.REPEAT_NONE) {
                 val repeatIcon = android.widget.ImageView(context).apply {
                     layoutParams = LinearLayout.LayoutParams(dotSize, dotSize).apply { marginStart = rowPadding / 2 }

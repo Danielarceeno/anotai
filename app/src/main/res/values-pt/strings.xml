@@ -29,6 +29,7 @@
     <string name="action_remove">Remover</string>
     <string name="action_pin">Fixar no topo</string>
     <string name="note_repeats">Repete</string>
+    <string name="note_pinned">Nota fixada</string>
     <string name="menu_sort">Ordenar</string>
     <string name="sort_recent">Mais recentes</string>
     <string name="sort_color">Cor</string>
