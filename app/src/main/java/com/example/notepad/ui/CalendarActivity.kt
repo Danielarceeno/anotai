@@ -222,25 +222,68 @@ class CalendarActivity : AppCompatActivity() {
         dayCells = cells
     }
 
-    /** Scales a day cell down slightly on touch-down and bounces it back on release, as instant
-     *  feedback a tap landed -- independent of [onDayClicked]'s dialog, which doesn't open until
-     *  the full click completes. Returns false (never consumes the event) so the view's own
-     *  OnClickListener and ripple background still fire normally. A disabled cell (a faded
-     *  leading/trailing day from an adjacent month) is left alone, matching that it isn't
-     *  clickable either. */
+    /** Scheduled on ACTION_DOWN, fired after [TAP_PRESS_DELAY_MS] -- see [animateDayPress]'s doc
+     *  for why this is delayed rather than immediate. Only one day cell can be mid-gesture at a
+     *  time (single-finger touch), so one instance field for this (and [isDayPressVisuallyDown])
+     *  is enough; no need to track it per cell. */
+    private var pendingDayPressRunnable: Runnable? = null
+    private var isDayPressVisuallyDown = false
+
+    /** Scales a day cell down slightly, then bounces it back on release, but only for a touch
+     *  that's actually a tap -- not one that turns into a swipe. [CalendarGridLayout] doesn't
+     *  start intercepting (and cancelling this cell's touch stream) until the finger has already
+     *  moved past touch-slop, so reacting to ACTION_DOWN immediately meant every month-swipe
+     *  flashed a press-down/bounce-back on whatever cell the swipe happened to start on, even
+     *  though the user never intended to tap it. Delaying the press-down by
+     *  [TAP_PRESS_DELAY_MS] (same idea as [android.view.ViewConfiguration.getTapTimeout], which
+     *  is what AbsListView's own "don't flash pressed state during a fling-start" logic uses)
+     *  gives a swipe-start time to be recognized and cancel it first. A fast, deliberate tap
+     *  (ACTION_UP arriving before that delay elapses) still gets its feedback -- just compressed
+     *  into one beat instead of skipped -- rather than silently doing nothing for a quick tap.
+     *  Returns false (never consumes the event) so the view's own OnClickListener and ripple
+     *  background still fire normally. A disabled cell (a faded leading/trailing day from an
+     *  adjacent month) is left alone, matching that it isn't clickable either. */
     private fun animateDayPress(view: View, event: android.view.MotionEvent): Boolean {
         if (!view.isClickable) return false
         when (event.actionMasked) {
             android.view.MotionEvent.ACTION_DOWN -> {
-                view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-                view.animate().scaleX(0.92f).scaleY(0.92f).setDuration(100)
-                    .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+                val runnable = Runnable {
+                    isDayPressVisuallyDown = true
+                    scaleDayCellDown(view)
+                }
+                pendingDayPressRunnable = runnable
+                view.postDelayed(runnable, TAP_PRESS_DELAY_MS)
             }
-            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
-                view.animate().scaleX(1f).scaleY(1f).setDuration(220)
-                    .setInterpolator(android.view.animation.OvershootInterpolator(3f)).start()
+            android.view.MotionEvent.ACTION_UP -> {
+                val wasStillPending = pendingDayPressRunnable != null && !isDayPressVisuallyDown
+                pendingDayPressRunnable?.let { view.removeCallbacks(it) }
+                pendingDayPressRunnable = null
+                if (wasStillPending) scaleDayCellDown(view) // fast tap: show it now instead of never
+                scaleDayCellUp(view)
+                isDayPressVisuallyDown = false
+            }
+            android.view.MotionEvent.ACTION_CANCEL -> {
+                pendingDayPressRunnable?.let { view.removeCallbacks(it) }
+                pendingDayPressRunnable = null
+                // Only bounce back if the press-down had actually started -- a cancel arriving
+                // before the delay elapses (CalendarGridLayout recognizing a swipe almost right
+                // away) means this cell never visibly reacted, so there's nothing to revert.
+                if (isDayPressVisuallyDown) scaleDayCellUp(view)
+                isDayPressVisuallyDown = false
+            }
         }
         return false
+    }
+
+    private fun scaleDayCellDown(view: View) {
+        view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+        view.animate().scaleX(0.92f).scaleY(0.92f).setDuration(100)
+            .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+    }
+
+    private fun scaleDayCellUp(view: View) {
+        view.animate().scaleX(1f).scaleY(1f).setDuration(220)
+            .setInterpolator(android.view.animation.OvershootInterpolator(3f)).start()
     }
 
     /**
@@ -561,5 +604,11 @@ class CalendarActivity : AppCompatActivity() {
         const val EXTRA_OPEN_TODAY = "open_today"
         private const val ACTION_NEW_TEXT_NOTE = "com.example.notepad.action.NEW_TEXT_NOTE"
         private const val ACTION_NEW_CHECKLIST_NOTE = "com.example.notepad.action.NEW_CHECKLIST_NOTE"
+
+        /** How long a day cell waits, from touch-down, before showing press feedback -- see
+         *  [animateDayPress]'s doc. Matches [android.view.ViewConfiguration.getTapTimeout]'s
+         *  intent (the delay Android's own scrollable widgets use for the same "don't flash
+         *  pressed state if this turns into a swipe" reason) without querying it per-touch. */
+        private const val TAP_PRESS_DELAY_MS = 100L
     }
 }
