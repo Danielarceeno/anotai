@@ -17,16 +17,21 @@ a home-screen widget, launcher shortcuts, and optional Google Drive backup.
 - **Notes**: text or checklist, 8-color palette, pin to top, bulk select/move/delete, undo on delete.
 - **Search**: debounced, with the matched term highlighted in results.
 - **Calendar**: full-screen monthly grid, swipe or arrow-button navigation, a dot per note due
-  that day, Saturday/Sunday day numbers tinted, tap a day to see/add/complete notes due then.
+  that day, Saturday/Sunday day numbers *and* weekday-header letters tinted, tap a day to
+  see/add/complete notes due then.
 - **Reminders**: due date + recurrence (none, daily, every weekday, weekly, bi-weekly, monthly,
-  yearly), with a daily 9am notification and snooze.
+  yearly, monthly on the same week-of-month + weekday e.g. "every 2nd Friday", or the first
+  business day of the month), with a daily 9am notification and snooze.
 - **Folders** and a **recoverable trash** (restore or permanently delete).
 - **Security**: optional PIN lock with biometric unlock as a shortcut on top of it.
-- **Home-screen widget**: today's notes, kept in sync automatically.
+- **Home-screen widget**: today's notes (or the next 3/7 days, configurable), kept in sync
+  automatically.
 - **Launcher shortcuts**: long-press the app icon for "New text note" / "New checklist".
-- **Backup**: manual export/import to a local JSON file, or sign in with Google and back up to
-  a private, app-scoped folder in Google Drive, with automatic 12-hourly background backups and
-  conflict detection if another device wrote a newer backup since this one last synced.
+- **Backup**: manual export/import to a local JSON file, or sign in with Google from the
+  dedicated Sync screen and back up to a private, app-scoped folder in Google Drive -- an
+  automatic background sync right after creating a note, plus a configurable periodic
+  background sync, with conflict detection if another device wrote a newer backup since this
+  one last synced.
 
 ## Assets
 

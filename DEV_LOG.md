@@ -6,6 +6,196 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 6 — Drive sync rework, performance pass, checklist redesign (2026-10-19 to 2026-10-20)
+
+Long, multi-part session driven by a mix of user bug reports and UX requests, not a single
+theme. Grouped below by topic, roughly chronological within each group.
+
+### Calendar visual polish
+- **Weekday header (D/S) tinted** to match the existing Saturday/Sunday day-number colors
+  (`calendar_saturday_number`/`calendar_sunday_number`) — previously only the numbers were
+  tinted, not the `DOM`/`SÁB` header letters.
+- **Day-cell press animation** (scale down + overshoot bounce back, plus a light haptic) on
+  tap. Reacting to `ACTION_DOWN` immediately turned out to also flash on a month-swipe's
+  starting cell (`CalendarGridLayout` doesn't intercept until past touch-slop) — fixed by
+  delaying the press-down by `TAP_PRESS_DELAY_MS` (100ms, same idea as
+  `ViewConfiguration.getTapTimeout`) so a swipe-start has time to cancel it first; a fast
+  deliberate tap still gets feedback, just compressed into one beat instead of skipped.
+- **Day dialog**: chevron icons (matching month nav) instead of double-arrow media icons,
+  "Add" → "Create" with a filled pill-shaped button instead of a plain text button, a darker
+  dialog background in dark mode (`#262626` → `#3A3A3A`, previously too close to the near-black
+  app background to read as its own surface). **Rounded corners took two attempts** — the first
+  (`shape_dialog_background.xml` as the content view's background) was invisible, because
+  `AlertDialog`'s own window paints its own default square panel *behind* whatever `setView()`
+  provides; fixed by setting the dialog window's background to a transparent `ColorDrawable`.
+
+### Drive backup: notes duplicating (two separate root causes)
+User report: "quando sincronizei pela primeira vez, ainda duplicou" / "ainda está duplicando".
+Two distinct bugs, found and fixed in sequence:
+
+1. **`mergeByUuid`'s `remoteOnly` list wasn't deduped by uuid.** If the remote Drive backup file
+   itself had two entries for the same uuid (plausible from a backup written before this
+   merge/tombstone logic existed at all), restoring onto a device with neither copy let both
+   through as separate new notes. Fix: `.distinctBy { it.uuid }` on that filter.
+   - A one-time "Remove duplicate notes" Settings tool (`NoteRepository.deduplicateByUuid`,
+     keeps the most-recently-modified copy per uuid, trashes the rest through the normal
+     tombstone-recording `delete` path) was added so the user could clean up notes already
+     duplicated by this bug, used once, then **removed** per their follow-up request — the
+     actual `mergeByUuid` fix stayed.
+2. **Concurrent syncs racing each other.** After adding "sync immediately after creating a
+   note" (see below), two sync runs landing close together — e.g. the periodic worker firing
+   right as a just-created note's immediate sync kicks off, or either racing the sync screen's
+   own manual button — could each call `restore` before either had called `backup` with its
+   result, so both independently decided the same remote-only note needed inserting locally:
+   two local rows, same uuid, genuinely duplicated. `mergeByUuid`'s `distinctBy` only guards a
+   duplicate *within* one read, not two overlapping reads/writes. Fix: consolidated the three
+   call sites (`DriveSyncActivity`'s manual backup/restore, the first-sign-in backup, and
+   `DriveBackupWorker`'s periodic/immediate runs) onto one new `DriveBackupHelper.syncNow`,
+   wrapped in a single process-wide `Mutex` — only one sync actually runs at a time.
+
+### New dedicated Drive Sync screen
+Replaced `SettingsActivity`'s old single row (opened a plain `PopupMenu`: back up now / restore
+/ sign out) with `DriveSyncActivity`: account name/email up front, "last sync" as a relative
+time and a live "notes synced" count (`DriveBackupHelper` now persists both in its own prefs,
+updated in `backup()`), one big filled "Sync" button, everything else (restore, backup
+frequency, sign out) in the toolbar's overflow menu. `SettingsActivity`'s Drive row just
+navigates there now.
+
+**Creating a new note** (not every edit) also triggers an immediate one-off background sync
+(`DriveBackupHelper.triggerImmediateBackup`, a `WorkManager` one-time request reusing
+`DriveBackupWorker`) instead of only relying on the periodic schedule, which could leave a
+freshly-created note unsynced for hours.
+
+### Settings reorganization
+- Split the old single "Appearance" section (which had grown to six unrelated rows: theme,
+  vertical-swipe, notifications, reminder time, folders, trash) into Appearance / Calendar /
+  Notifications / Organization, matching how Widget/Backup/Security already had their own
+  headers.
+- **Removed the daily-reminder-time picker row** per explicit user request ("só tirar a opção
+  de escolher o horário") — the daily 9am catch-all check itself still runs (nothing removed
+  from `ReminderPrefs`'s default or `ReminderScheduler`), it's just no longer
+  user-configurable from the UI. Anyone who'd already picked a custom time keeps it.
+- Backup frequency picker moved into `DriveSyncActivity`'s overflow menu (see above).
+
+### Performance pass (6 items from a code-reading audit, not profiler output)
+1. **`AppDatabase` warm-up off the main thread**: its first call does real synchronous I/O
+   (SQLCipher native lib load, unwrapping the Keystore-backed passphrase, opening/migrating the
+   SQLite file) on whichever thread calls it — every Activity called it directly in `onCreate`,
+   landing that work on the main thread during the launcher Activity's cold start. Now
+   triggered from a background coroutine in `NotepadApplication.onCreate` instead.
+2. **`ChecklistItem.countDone`**: a single-pass count replacing `parse(body)` (full
+   `List<ChecklistItem>` allocation) just to show "n/m done" on every list-row bind — was
+   re-running on every scroll-triggered rebind and Paging3 refresh.
+3. **Attached photos downsampled** to 1600px on the long edge and re-encoded (JPEG, quality 85)
+   before being stored, instead of a byte-for-byte copy of the picker's original file (a modern
+   phone photo can be several MB). EXIF rotation is baked into the pixels first
+   (`decodeAndOrientBitmap`), since re-encoding to a fresh JPEG would otherwise silently drop
+   that tag and the photo could come out sideways.
+4. **`RemindersCache`**: a 2-second-TTL memo of `getAllReminders()`. A single note mutation
+   fans out to independent consumers (`ReminderNotifier.checkAndNotify`, the widget's
+   `RemoteViewsFactory`) that each re-scanned the same "every active note with a due date"
+   query within milliseconds of each other.
+5. **New `Index(["activeState"])`** on `Note` — the existing `(folderId, activeState)` compound
+   index doesn't help a query filtering on `activeState` alone (the main list's "every folder"
+   case, the trash screen), which fell back to a full table scan. `MIGRATION_13_14` adds it for
+   existing installs; verified the migration's raw SQL matches Room's own generated `CREATE
+   INDEX` exactly by inspecting the KSP-generated `AppDatabase_Impl`.
+6. **Investigated trimming the Google Drive/Sign-In dependency stack** (`grpc-context`,
+   `opencensus-api`/`-contrib-http-util`, pulled in transitively, inflating the dependency
+   graph with code this app's Drive calls never use) for APK size. **Measured, didn't just
+   assume**: built `assembleRelease` before (17,167,070 bytes) and after excluding those
+   artifacts — identical byte count. R8 already tree-shakes the unused code regardless of
+   whether the dependency is declared; excluding it only broke the release build (R8 couldn't
+   resolve classes `OpenCensusUtils` still references, needing `-dontwarn` rules to work around
+   something that bought nothing). Reverted; no safe win available there.
+
+### Custom recurrence rules
+Added two repetition types, requested with examples like "toda sexta-feira da 2ª semana" /
+"primeiro dia útil do mês":
+- `REPEAT_MONTHLY_NTH_WEEKDAY`: both the weekday and which occurrence of it (1st..5th) are
+  derived from the note's own due date, not stored as separate fields — creating the note on
+  "the 2nd Friday" is itself what encodes the rule.
+- `REPEAT_FIRST_BUSINESS_DAY_OF_MONTH`: the first Mon–Fri day of every month (no holiday
+  calendar, same "business day" = "not a weekend" definition `REPEAT_EVERY_WEEKDAY` already
+  uses).
+
+Both appended after `REPEAT_YEARLY` (values 7/8), not inserted earlier in `Note`'s existing
+list — `repetition` is a plain int already persisted for every existing note, so renumbering
+would silently change what they mean.
+
+### Checklist redesign
+- **Icons modernized**: the drag handle and the editor's folder-row icon both reused
+  `android.R.drawable.ic_menu_sort_by_size` (a "sort" icon, wrong for a folder row and only
+  vaguely grip-like for a drag handle) — replaced with purpose-made vectors (6-dot grip, a
+  real folder icon, a filled add-circle for the add-item icon).
+- **"Add item" row restructured**, per direct comparison against a reference screenshot: it
+  used to be a separate, differently-styled input bar fixed below the checklist
+  `RecyclerView` — structurally different from the item rows above it, which is why an
+  icon-only pass still read as "the same as before". Now it's the `RecyclerView`'s own
+  trailing row (`ChecklistAdapter.VIEW_TYPE_ADD`), styled identically to a real item, just
+  empty with a muted "+ Add item" placeholder. Submitting it (IME "Next") inserts a real row
+  just above it; the add-row stays last, cleared, ready for the next item, so adding several
+  items in one sitting is one continuous flow. `ItemTouchHelper.canDropOver` keeps a dragged
+  real item from being dropped onto/past this row.
+
+### Test/CI work
+Across this session: FTS5 search regression tests, a tombstone-sync integration test against a
+real Room DB (not just the pure merge function), a calendar-day-dialog end-to-end test, a
+backup-JSON round-trip test (previously zero coverage for `BackupHelper`'s serialization), and
+a `connectedDebugAndroidTest` CI job (`reactivecircus/android-emulator-runner`) — **not yet
+verified against a real GitHub Actions run**, only locally.
+
+Final pass this session (emulator only, no physical device): **50 unit tests + 21 instrumented
+tests, all passing.** Three new regression tests added for the areas above with the thinnest
+coverage:
+- `ChecklistAddRowTest` — adds three items in a row through the trailing add-row, guarding
+  against it not being recreated (or not staying trailing) after each submit.
+- `DriveSyncActivityTest` — smoke test for the new screen's signed-out state (no coverage
+  existed for it at all).
+- `ReminderPrefsDefaultTest` — locks in the 9am default now that it's no longer
+  user-configurable, so a future change to it wouldn't be caught by anything else.
+
+### Known gaps
+- The Drive-sync `Mutex` fix has no automated concurrency test — this project has no mocking
+  library and `GoogleSignInAccount`/network calls aren't easily fakeable with plain JUnit, so
+  it's verified by code reasoning only. Worth a real-world confirmation from the user that
+  duplicates don't reappear after normal day-to-day use (create notes, let auto-sync and the
+  periodic schedule both fire near each other).
+- Espresso tests reliably fail on the user's own physical phone (not the emulator) with
+  "Animations or transitions are enabled on the target device" — a pre-existing, documented
+  environment limitation (some OEM builds block the `adb shell settings put global` that would
+  fix it), not a regression from this session. All verification this session was done against
+  the emulator only, per explicit request.
+- The CI workflow change (instrumented-tests job) hasn't actually run on GitHub Actions yet —
+  written to match the standard `reactivecircus/android-emulator-runner` setup, but only
+  confirmed working locally.
+
+### Files touched (non-exhaustive, grouped by topic)
+Calendar/dialog: `ui/CalendarActivity.kt`, `ui/DayNotesDialog.kt`,
+`res/layout/dialog_day_notes.xml`, `res/drawable/shape_dialog_background.xml` (new),
+`res/values-night/colors.xml`.
+Drive: `data/drive/DriveBackupHelper.kt`, `data/drive/DriveBackupWorker.kt`,
+`ui/DriveSyncActivity.kt` (new), `res/layout/activity_drive_sync.xml` (new),
+`res/menu/menu_drive_sync.xml` (new), `res/drawable/ic_google_logo.xml` (new),
+`ui/SettingsActivity.kt`, `ui/NoteEditorActivity.kt`.
+Settings layout: `res/layout/activity_settings.xml`.
+Performance: `NotepadApplication.kt`, `data/ChecklistItem.kt`, `data/RemindersCache.kt` (new),
+`data/NoteRepository.kt`, `data/Note.kt`, `data/AppDatabase.kt` (migration 13→14),
+`widget/TodayNotesRemoteViewsService.kt`.
+Recurrence: `data/Note.kt`, `data/RecurrenceUtils.kt`,
+`res/values(-pt)/strings.xml` (`repetition_options`).
+Checklist: `ui/ChecklistAdapter.kt`, `ui/NoteEditorActivity.kt`,
+`res/layout/activity_note_editor.xml`, `res/layout/item_checklist.xml`,
+`res/layout/item_checklist_add.xml` (new), `res/drawable/ic_drag_handle.xml` (new),
+`res/drawable/ic_add_circle.xml` (new), `res/drawable/ic_folder.xml` (new).
+Tests: `app/src/test/java/com/example/notepad/data/{ChecklistItemTest,RemindersCacheTest,
+RecurrenceUtilsTest,DriveBackupHelperTest}.kt`, `app/src/androidTest/java/com/example/notepad/
+{ChecklistAddRowTest,DriveSyncActivityTest,ReminderPrefsDefaultTest,
+CalendarDayDialogShowsNotesTest,NoteRepositoryTombstoneSyncTest,BackupJsonRoundTripTest,
+SearchFtsSubstringMatchTest,CreateEditNoteFlowTest}.kt`, `.github/workflows/ci.yml`.
+
+---
+
 ## Session 5 — Calendar date picker + configurable swipe axis (2026-10-16)
 
 User request: tapping the month label should jump straight to a chosen day;
