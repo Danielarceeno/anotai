@@ -9,15 +9,16 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingVertical="4dp">
+        android:paddingVertical="8dp">
 
         <ImageView
             android:id="@+id/dragHandle"
             android:layout_width="24dp"
             android:layout_height="24dp"
+            android:layout_marginEnd="4dp"
             android:contentDescription="@string/drag_to_reorder"
-            android:src="@android:drawable/ic_menu_sort_by_size"
-            android:alpha="0.5" />
+            android:src="@drawable/ic_drag_handle"
+            android:alpha="0.35" />
 
         <CheckBox
             android:id="@+id/checkBox"
@@ -29,6 +30,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:layout_marginStart="4dp"
             android:background="@android:color/transparent"
             android:hint="@string/add_item_hint"
             android:importantForAutofill="no"
@@ -37,20 +39,24 @@
 
         <ImageButton
             android:id="@+id/removeButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:padding="7dp"
+            android:alpha="0.5"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/menu_delete"
             android:src="@android:drawable/ic_menu_close_clear_cancel" />
 
     </LinearLayout>
 
-    <!-- Thin separator between checklist rows, matching the reference screenshot in imagens/. -->
+    <!-- Thin separator between checklist rows, lighter than before so a plain list of items
+         reads as one clean list rather than a stack of bordered cards. -->
     <View
         android:id="@+id/itemDivider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginStart="32dp"
+        android:alpha="0.5"
         android:background="@color/checklist_item_divider" />
 
 </LinearLayout>
