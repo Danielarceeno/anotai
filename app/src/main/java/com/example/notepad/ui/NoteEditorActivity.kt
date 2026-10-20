@@ -1,6 +1,7 @@
 package com.example.notepad.ui
 
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
@@ -29,7 +30,9 @@ import com.example.notepad.notification.ReminderNotifier
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Create/edit screen. Autosaves on exit (back press or losing focus),
@@ -255,14 +258,23 @@ class NoteEditorActivity : AppCompatActivity() {
         }
     }
 
+    /** Downsamples to at most [MAX_STORED_IMAGE_DIMENSION] on the long edge and re-encodes as
+     *  JPEG, instead of copying the picked file byte-for-byte -- a modern phone camera photo can
+     *  be 12MP+ (several MB), and this note is never going to display it any larger than a small
+     *  preview/thumbnail, so storing (and, via Drive, re-uploading) the original resolution was
+     *  pure waste. [decodeAndOrientBitmap] bakes the EXIF rotation into the pixels first since
+     *  re-encoding to a fresh JPEG would otherwise silently drop that tag and the photo could
+     *  come out sideways. */
     private fun copyImageIntoStorage(uri: Uri) {
         lifecycleScope.launch {
             try {
+                val bitmap = withContext(Dispatchers.IO) { decodeAndOrientBitmap(uri, MAX_STORED_IMAGE_DIMENSION) } ?: return@launch
                 val dir = File(filesDir, "images").apply { mkdirs() }
                 val dest = File(dir, "img_${System.currentTimeMillis()}.jpg")
-                contentResolver.openInputStream(uri)?.use { input ->
-                    dest.outputStream().use { output -> input.copyTo(output) }
+                withContext(Dispatchers.IO) {
+                    dest.outputStream().use { output -> bitmap.compress(Bitmap.CompressFormat.JPEG, 85, output) }
                 }
+                bitmap.recycle()
                 removeOldImageFile()
                 selectedImagePath = dest.absolutePath
                 updateImagePreview()
@@ -271,6 +283,41 @@ class NoteEditorActivity : AppCompatActivity() {
                 // simplest safe fallback is to just leave the note without an image.
             }
         }
+    }
+
+    /** Same inSampleSize approach as [decodeSampledBitmap], just reading from a [Uri] (needs a
+     *  fresh InputStream per decode pass: bounds, then content, then EXIF) instead of a path on
+     *  disk, since the source here is still the picker's content:// URI, not yet copied anywhere. */
+    private fun decodeAndOrientBitmap(uri: Uri, maxDimension: Int): android.graphics.Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0) return null
+
+        var sampleSize = 1
+        while (bounds.outWidth / (sampleSize * 2) >= maxDimension && bounds.outHeight / (sampleSize * 2) >= maxDimension) {
+            sampleSize *= 2
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        val sampled = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
+
+        val rotationDegrees = contentResolver.openInputStream(uri)?.use {
+            android.media.ExifInterface(it).getAttributeInt(
+                android.media.ExifInterface.TAG_ORIENTATION, android.media.ExifInterface.ORIENTATION_NORMAL
+            )
+        }?.let { orientation ->
+            when (orientation) {
+                android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                else -> 0
+            }
+        } ?: 0
+        if (rotationDegrees == 0) return sampled
+
+        val matrix = android.graphics.Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+        val rotated = android.graphics.Bitmap.createBitmap(sampled, 0, 0, sampled.width, sampled.height, matrix, true)
+        if (rotated !== sampled) sampled.recycle()
+        return rotated
     }
 
     private fun removeImage() {
@@ -577,5 +624,10 @@ class NoteEditorActivity : AppCompatActivity() {
 
         /** Index into [NoteColors.values] for the dark/black swatch, the fallback before any note is ever saved. */
         private const val DEFAULT_COLOR_INDEX = 6
+
+        /** Long-edge cap, in pixels, for an attached photo once copied into app storage -- well
+         *  above anything this note ever actually displays it at (see [decodeSampledBitmap]'s
+         *  240x240 preview), but enough to still look sharp if ever viewed/exported full-screen. */
+        private const val MAX_STORED_IMAGE_DIMENSION = 1600
     }
 }
