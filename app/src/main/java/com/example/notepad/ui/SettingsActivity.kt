@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -15,7 +14,6 @@ import androidx.lifecycle.lifecycleScope
 import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
 import com.example.notepad.data.BackupHelper
-import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.data.drive.DriveBackupHelper
 import com.example.notepad.databinding.ActivitySettingsBinding
@@ -23,9 +21,6 @@ import com.example.notepad.databinding.DialogSetPinBinding
 import com.example.notepad.notification.ReminderPrefs
 import com.example.notepad.notification.ReminderScheduler
 import com.example.notepad.security.SecurityPrefs
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -41,10 +36,6 @@ class SettingsActivity : AppCompatActivity() {
     private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { importFrom(it) }
     }
-    private val driveSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        handleDriveSignInResult(result.data)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
@@ -85,10 +76,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.importRow.setOnClickListener { importLauncher.launch(arrayOf("application/json", "text/*")) }
 
         updateDriveRow()
-        binding.driveBackupRow.setOnClickListener { onDriveRowClicked() }
-
-        updateBackupFrequencyText()
-        binding.backupFrequencyRow.setOnClickListener { showBackupFrequencyPicker() }
+        binding.driveBackupRow.setOnClickListener { startActivity(Intent(this, DriveSyncActivity::class.java)) }
 
         binding.pinLockSwitch.isChecked = SecurityPrefs.isPinEnabled(this)
         updatePinDependentRows()
@@ -109,6 +97,13 @@ class SettingsActivity : AppCompatActivity() {
         binding.biometricSwitch.setOnCheckedChangeListener { _, isChecked ->
             SecurityPrefs.setBiometricEnabled(this, isChecked)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reflects a sign-in/out that happened in DriveSyncActivity without needing to recreate
+        // this screen.
+        updateDriveRow()
     }
 
     private fun updatePinDependentRows() {
@@ -260,143 +255,6 @@ class SettingsActivity : AppCompatActivity() {
             getString(R.string.drive_signed_in_as, account.email)
         } else {
             getString(R.string.settings_drive_not_signed_in)
-        }
-    }
-
-    private fun updateBackupFrequencyText() {
-        val hours = DriveBackupHelper.getIntervalHours(this)
-        binding.backupFrequencyValue.text = if (hours == 24) {
-            getString(R.string.backup_frequency_daily)
-        } else {
-            getString(R.string.backup_frequency_hours, hours)
-        }
-    }
-
-    private fun showBackupFrequencyPicker() {
-        val hoursOptions = intArrayOf(6, 12, 24)
-        val labels = hoursOptions.map {
-            if (it == 24) getString(R.string.backup_frequency_daily) else getString(R.string.backup_frequency_hours, it)
-        }.toTypedArray()
-        val current = hoursOptions.indexOf(DriveBackupHelper.getIntervalHours(this)).coerceAtLeast(0)
-
-        AlertDialog.Builder(this)
-            .setTitle(R.string.settings_backup_frequency_title)
-            .setSingleChoiceItems(labels, current) { dialog, which ->
-                DriveBackupHelper.setIntervalHours(this, hoursOptions[which])
-                updateBackupFrequencyText()
-                // Only an already-running schedule needs re-applying; signing in later will pick
-                // up the new interval on its own first call to schedulePeriodicBackup.
-                if (DriveBackupHelper.lastSignedInAccount(this) != null) {
-                    DriveBackupHelper.schedulePeriodicBackup(this)
-                }
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.reminder_cancel, null)
-            .show()
-    }
-
-    private fun onDriveRowClicked() {
-        val account = DriveBackupHelper.lastSignedInAccount(this)
-        if (account == null) {
-            driveSignInLauncher.launch(DriveBackupHelper.signInClient(this).signInIntent)
-            return
-        }
-        val popup = PopupMenu(this, binding.driveBackupRow)
-        popup.menu.add(getString(R.string.drive_backup_now)).setOnMenuItemClickListener {
-            backupToDrive(account)
-            true
-        }
-        popup.menu.add(getString(R.string.drive_restore)).setOnMenuItemClickListener {
-            restoreFromDrive(account)
-            true
-        }
-        popup.menu.add(getString(R.string.drive_sign_out)).setOnMenuItemClickListener {
-            DriveBackupHelper.cancelPeriodicBackup(applicationContext)
-            DriveBackupHelper.signOut(this) { updateDriveRow() }
-            true
-        }
-        popup.show()
-    }
-
-    private fun handleDriveSignInResult(data: Intent?) {
-        val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-        try {
-            val account: GoogleSignInAccount = task.getResult(ApiException::class.java)
-            updateDriveRow()
-            DriveBackupHelper.schedulePeriodicBackup(applicationContext)
-            backupToDrive(account) // first sign-in doubles as the first backup
-        } catch (e: ApiException) {
-            // statusCode 10 (DEVELOPER_ERROR) means there's no OAuth client registered in Google
-            // Cloud Console for this app's package name + signing certificate -- not something
-            // fixable from inside the app; the status code is the fastest way to tell that case
-            // apart from an actual runtime failure (network, cancelled, etc).
-            android.util.Log.e("DriveSignIn", "Sign-in failed: statusCode=${e.statusCode} ${e.message}", e)
-            Toast.makeText(this, R.string.drive_sign_in_failed, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /** Merges this device's notes against whatever's currently in Drive (per-note, by
-     *  [com.example.notepad.data.Note.uuid] -- see [DriveBackupHelper.mergeByUuid]) before
-     *  writing anything, so neither side's independent changes since the last sync get silently
-     *  thrown away by the other. */
-    private fun backupToDrive(account: GoogleSignInAccount) {
-        lifecycleScope.launch {
-            try {
-                val local = repository.getAllForExport()
-                val remoteData = DriveBackupHelper.restore(applicationContext, account)
-                val merged = if (remoteData != null) {
-                    val tombstones = repository.mergeTombstones(remoteData.tombstones)
-                    val result = DriveBackupHelper.mergeByUuid(local, remoteData.notes, tombstones)
-                    applyMergeResult(result)
-                    result.notes
-                } else {
-                    local
-                }
-                DriveBackupHelper.backup(applicationContext, account, merged, repository.getTombstones())
-                Toast.makeText(this@SettingsActivity, R.string.drive_backup_success, Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(this@SettingsActivity, R.string.drive_backup_failed, Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    /** Same per-note merge as [backupToDrive], then also pushes the merged result back to Drive
-     *  so a note only this device had isn't left out of the next device's restore either. */
-    private fun restoreFromDrive(account: GoogleSignInAccount) {
-        lifecycleScope.launch {
-            try {
-                val remoteData = DriveBackupHelper.restore(applicationContext, account)
-                if (remoteData == null) {
-                    Toast.makeText(this@SettingsActivity, R.string.drive_no_backup_found, Toast.LENGTH_SHORT).show()
-                    return@launch
-                }
-                val local = repository.getAllForExport()
-                val tombstones = repository.mergeTombstones(remoteData.tombstones)
-                val result = DriveBackupHelper.mergeByUuid(local, remoteData.notes, tombstones)
-                applyMergeResult(result)
-                DriveBackupHelper.backup(applicationContext, account, result.notes, repository.getTombstones())
-                val added = result.notes.size - local.size
-                val message = resources.getQuantityString(R.plurals.import_success, added, added)
-                Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(this@SettingsActivity, R.string.drive_restore_failed, Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    /** Applies a [DriveBackupHelper.mergeByUuid] result locally: a merged note that kept an
-     *  existing local id is an update (whether its content changed or not, which is cheap and
-     *  simpler than diffing); one with `id == 0` is a note this device didn't have yet.
-     *  [DriveBackupHelper.MergeResult.locallyDeletedIds] are trashed too -- notes this device
-     *  still had active, but that the merge found a newer tombstone for from another device. */
-    private suspend fun applyMergeResult(result: DriveBackupHelper.MergeResult) {
-        for (note in result.notes) {
-            val saved = if (note.id == 0L) note.copy(id = repository.insert(note)) else note.also { repository.update(it) }
-            com.example.notepad.notification.NoteReminderScheduler.schedule(applicationContext, saved)
-        }
-        for (id in result.locallyDeletedIds) {
-            repository.trashLocally(id)
-            com.example.notepad.notification.NoteReminderScheduler.cancel(applicationContext, id)
         }
     }
 

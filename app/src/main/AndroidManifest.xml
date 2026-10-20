@@ -91,6 +91,11 @@
             android:label="@string/settings_title" />
 
         <activity
+            android:name=".ui.DriveSyncActivity"
+            android:exported="false"
+            android:label="@string/drive_sync_title" />
+
+        <activity
             android:name=".ui.LockActivity"
             android:exported="false" />
 

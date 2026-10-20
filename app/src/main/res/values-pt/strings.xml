@@ -151,6 +151,15 @@
     <string name="drive_restore_failed">Falha ao restaurar do Google Drive</string>
     <string name="drive_no_backup_found">Nenhum backup encontrado no Google Drive</string>
     <string name="drive_sign_in_failed">Falha ao entrar com o Google</string>
+    <string name="drive_sync_title">Sincronização</string>
+    <string name="drive_sync_pitch_title">Faça backup das suas notas</string>
+    <string name="drive_sync_pitch_body">Entre com o Google para manter suas notas salvas e sincronizadas entre aparelhos.</string>
+    <string name="drive_sync_sign_in">Entrar com o Google</string>
+    <string name="drive_sync_google_label">Google</string>
+    <string name="drive_sync_last_sync_label">Última sincronização</string>
+    <string name="drive_sync_note_count_label">Notas sincronizadas</string>
+    <string name="drive_sync_now">Sincronizar</string>
+    <string name="drive_sync_never">Nunca</string>
     <string name="settings_security_title">Segurança</string>
     <string name="settings_pin_lock_title">Bloquear app com PIN</string>
     <string name="settings_auto_lock_title">Bloqueio automático após</string>

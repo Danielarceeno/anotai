@@ -151,6 +151,15 @@
     <string name="drive_restore_failed">Google Drive restore failed</string>
     <string name="drive_no_backup_found">No backup found in Google Drive</string>
     <string name="drive_sign_in_failed">Google sign-in failed</string>
+    <string name="drive_sync_title">Sync</string>
+    <string name="drive_sync_pitch_title">Back up your notes</string>
+    <string name="drive_sync_pitch_body">Sign in with Google to keep your notes backed up and synced across devices.</string>
+    <string name="drive_sync_sign_in">Sign in with Google</string>
+    <string name="drive_sync_google_label">Google</string>
+    <string name="drive_sync_last_sync_label">Last sync</string>
+    <string name="drive_sync_note_count_label">Notes synced</string>
+    <string name="drive_sync_now">Sync</string>
+    <string name="drive_sync_never">Never</string>
     <string name="settings_security_title">Security</string>
     <string name="settings_pin_lock_title">Lock app with PIN</string>
     <string name="settings_auto_lock_title">Auto-lock after</string>

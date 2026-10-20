@@ -547,6 +547,13 @@ class NoteEditorActivity : AppCompatActivity() {
                     val id = repository.insert(draft)
                     saved = draft.copy(id = id)
                     note = saved
+                    // "Create" (not every edit) is the moment the user most needs to know this
+                    // note is actually safe -- an immediate background sync instead of waiting
+                    // for the next periodic tick (up to several hours away). A no-op if nobody's
+                    // signed in to Drive.
+                    if (com.example.notepad.data.drive.DriveBackupHelper.lastSignedInAccount(applicationContext) != null) {
+                        com.example.notepad.data.drive.DriveBackupHelper.triggerImmediateBackup(applicationContext)
+                    }
                 }
                 // Deliberately not calling ReminderNotifier.checkAndNotify() here: creating/editing
                 // a note shouldn't pop a notification on screen right away, only the scheduled daily

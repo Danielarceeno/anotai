@@ -17,7 +17,9 @@ import com.google.api.services.drive.DriveScopes
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
@@ -40,9 +42,12 @@ object DriveBackupHelper {
     private const val BACKUP_FILE_NAME = "anotai-backup.json"
     private const val APP_NAME = "Anotaí"
     private const val PERIODIC_WORK_NAME = "drive_periodic_backup"
+    private const val IMMEDIATE_WORK_NAME = "drive_immediate_backup"
     private const val PREFS_NAME = "drive_backup_prefs"
     private const val KEY_INTERVAL_HOURS = "interval_hours"
     private const val DEFAULT_INTERVAL_HOURS = 12
+    private const val KEY_LAST_SYNC_MILLIS = "last_sync_millis"
+    private const val KEY_LAST_SYNC_NOTE_COUNT = "last_sync_note_count"
 
     /** The user's chosen auto-backup interval in hours, set from Settings. WorkManager's own
      *  minimum for periodic work is 15 minutes, well under any of the offered choices. */
@@ -65,6 +70,26 @@ object DriveBackupHelper {
         WorkManager.getInstance(context)
             .enqueueUniquePeriodicWork(PERIODIC_WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
+
+    /** Runs [DriveBackupWorker] once, right away (network permitting) instead of waiting for the
+     *  next periodic tick -- called after creating a note so it doesn't sit unsynced for up to
+     *  [getIntervalHours]. [ExistingWorkPolicy.REPLACE]: several notes created in quick succession
+     *  only need the latest request to actually run, since each one is a full resync anyway. A
+     *  no-op (the worker itself checks) if nobody's signed in to Drive. */
+    fun triggerImmediateBackup(context: Context) {
+        val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork(IMMEDIATE_WORK_NAME, ExistingWorkPolicy.REPLACE, request)
+    }
+
+    /** When [backup] last actually uploaded something, or 0 if never. */
+    fun getLastSyncMillis(context: Context): Long = prefs(context).getLong(KEY_LAST_SYNC_MILLIS, 0L)
+
+    /** How many notes were in the merged set as of the last successful [backup]. */
+    fun getLastSyncNoteCount(context: Context): Int = prefs(context).getInt(KEY_LAST_SYNC_NOTE_COUNT, 0)
 
     fun cancelPeriodicBackup(context: Context) {
         WorkManager.getInstance(context).cancelUniqueWork(PERIODIC_WORK_NAME)
@@ -174,6 +199,10 @@ object DriveBackupHelper {
                 service.files().create(metadata, content).execute()
             }
         }
+        prefs(context).edit()
+            .putLong(KEY_LAST_SYNC_MILLIS, System.currentTimeMillis())
+            .putInt(KEY_LAST_SYNC_NOTE_COUNT, notes.size)
+            .apply()
     }
 
     /** Null means no backup file exists yet in Drive; distinct from a parse failure, which
