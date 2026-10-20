@@ -42,8 +42,8 @@ class TrashAdapter(
         fun bind(note: Note, onRestore: (Note) -> Unit, onDeleteForever: (Note) -> Unit) {
             binding.titleView.text = note.title.ifBlank { "(" + binding.root.context.getString(com.example.notepad.R.string.title_hint) + ")" }
             binding.bodyView.text = if (note.type == Note.TYPE_CHECKLIST) {
-                val items = ChecklistItem.parse(note.body)
-                "${items.count { it.checked }}/${items.size} done"
+                val (done, total) = ChecklistItem.countDone(note.body)
+                "$done/$total done"
             } else {
                 NoteFormatting.plainText(note.body, note.isFormatted)
             }

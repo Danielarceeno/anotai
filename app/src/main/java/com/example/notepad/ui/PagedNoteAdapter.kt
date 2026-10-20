@@ -53,9 +53,8 @@ class PagedNoteAdapter(
         ) {
             binding.titleView.text = note.title
             binding.bodyView.text = if (note.type == Note.TYPE_CHECKLIST) {
-                val items = ChecklistItem.parse(note.body)
-                val done = items.count { it.checked }
-                "$done/${items.size} done"
+                val (done, total) = ChecklistItem.countDone(note.body)
+                "$done/$total done"
             } else {
                 NoteFormatting.plainText(note.body, note.isFormatted)
             }

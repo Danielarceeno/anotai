@@ -73,9 +73,8 @@ class NoteAdapter(
         ) {
             binding.titleView.text = highlighted(note.title, highlight)
             binding.bodyView.text = if (note.type == Note.TYPE_CHECKLIST) {
-                val items = ChecklistItem.parse(note.body)
-                val done = items.count { it.checked }
-                "$done/${items.size} done"
+                val (done, total) = ChecklistItem.countDone(note.body)
+                "$done/$total done"
             } else {
                 highlighted(NoteFormatting.plainText(note.body, note.isFormatted), highlight)
             }

@@ -24,5 +24,20 @@ data class ChecklistItem(val text: String, val checked: Boolean) {
                         else -> ChecklistItem(line, false)
                     }
                 }
+
+        /** (done, total) without allocating a [ChecklistItem] per line -- the note-list adapters
+         *  (one per row, re-run on every scroll-triggered rebind) only need these two counts for
+         *  their "n/m done" label, not the parsed items [parse] builds for the actual checklist
+         *  editor/day-dialog views. */
+        fun countDone(body: String): Pair<Int, Int> {
+            var total = 0
+            var done = 0
+            for (line in body.lineSequence()) {
+                if (line.isBlank()) continue
+                total++
+                if (line.startsWith(CHECKED_PREFIX)) done++
+            }
+            return done to total
+        }
     }
 }
