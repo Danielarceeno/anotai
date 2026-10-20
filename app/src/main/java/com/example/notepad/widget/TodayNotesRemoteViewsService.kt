@@ -7,6 +7,7 @@ import android.widget.RemoteViewsService
 import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
 import com.example.notepad.data.Note
+import com.example.notepad.data.NoteRepository
 import com.example.notepad.data.RecurrenceUtils
 import com.example.notepad.ui.NoteEditorActivity
 import java.util.Calendar
@@ -32,14 +33,19 @@ private class TodayNotesRemoteViewsFactory(
      *  2 of a 3-day range still should) is kept only once, in the order its first occurrence in
      *  the range falls. */
     override fun onDataSetChanged() {
-        val dao = AppDatabase.getInstance(context).noteDao()
+        val db = AppDatabase.getInstance(context)
+        // Goes through NoteRepository (RemindersCache-backed), not a raw dao.getAllReminders()
+        // call, so this doesn't redundantly re-scan the table when ReminderNotifier.checkAndNotify
+        // already queried the exact same thing moments ago for the same note mutation that
+        // triggered this widget refresh in the first place -- see RemindersCache's doc.
+        val repository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())
         val todayStart = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }.timeInMillis
         val oneDayMillis = 24 * 60 * 60 * 1000L
         val rangeDays = WidgetPrefs.getRangeDays(context)
 
-        val allReminders = runBlocking { dao.getAllReminders() }
+        val allReminders = runBlocking { repository.getAllReminders() }
         val seenIds = mutableSetOf<Long>()
         val result = mutableListOf<Note>()
         for (offset in 0 until rangeDays) {

@@ -48,12 +48,14 @@ class NoteRepository(
 
     suspend fun insert(note: Note): Long {
         val id = dao.insert(note)
+        RemindersCache.invalidate()
         TodayNotesWidgetProvider.notifyNotesChanged(appContext)
         return id
     }
 
     suspend fun update(note: Note) {
         dao.update(note)
+        RemindersCache.invalidate()
         TodayNotesWidgetProvider.notifyNotesChanged(appContext)
     }
 
@@ -65,6 +67,7 @@ class NoteRepository(
         val uuid = dao.getById(id)?.uuid
         dao.delete(id)
         if (uuid != null) tombstoneDao.insert(NoteTombstone(uuid, System.currentTimeMillis()))
+        RemindersCache.invalidate()
         TodayNotesWidgetProvider.notifyNotesChanged(appContext)
     }
 
@@ -75,6 +78,7 @@ class NoteRepository(
         val uuid = dao.getById(id)?.uuid
         dao.restore(id)
         if (uuid != null) tombstoneDao.delete(uuid)
+        RemindersCache.invalidate()
         TodayNotesWidgetProvider.notifyNotesChanged(appContext)
     }
 
@@ -106,12 +110,14 @@ class NoteRepository(
      *  real cross-device deletion time that other devices still need to compare against. */
     suspend fun trashLocally(id: Long) {
         dao.delete(id)
+        RemindersCache.invalidate()
         TodayNotesWidgetProvider.notifyNotesChanged(appContext)
     }
 
     suspend fun deleteForever(id: Long) {
         deleteImageFile(dao.getById(id))
         dao.deleteForever(id)
+        RemindersCache.invalidate()
     }
 
     suspend fun emptyTrash() {
@@ -140,7 +146,9 @@ class NoteRepository(
 
     fun observeAllReminders(): LiveData<List<Note>> = dao.observeAllReminders()
 
-    suspend fun getAllReminders(): List<Note> = dao.getAllReminders()
+    /** Short-TTL memoized -- see [RemindersCache]'s doc for why: this specific query gets hit by
+     *  more than one independent consumer within milliseconds of the same note mutation. */
+    suspend fun getAllReminders(): List<Note> = RemindersCache.get { dao.getAllReminders() }
 
     /**
      * [query] is the raw text the user typed; this builds the LIKE pattern and escapes '%', '_'
