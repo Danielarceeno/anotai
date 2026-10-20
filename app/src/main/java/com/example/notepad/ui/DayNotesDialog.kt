@@ -107,7 +107,8 @@ object DayNotesDialog {
                 buttonDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.selector_note_done_toggle)
                 isChecked = isDoneToday
                 contentDescription = context.getString(R.string.mark_done)
-                setOnCheckedChangeListener { _, isChecked ->
+                setOnCheckedChangeListener { button, isChecked ->
+                    button.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
                     applyCompletedStyle(title, isChecked)
                     onToggleComplete(note, isChecked)
                 }
@@ -199,7 +200,8 @@ object DayNotesDialog {
             val itemCheckBox = CheckBox(context).apply {
                 isChecked = item.checked
                 contentDescription = item.text
-                setOnCheckedChangeListener { _, isChecked ->
+                setOnCheckedChangeListener { button, isChecked ->
+                    button.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
                     applyCompletedStyle(itemText, isChecked)
                     onToggleChecklistItem(note, index, isChecked)
                 }

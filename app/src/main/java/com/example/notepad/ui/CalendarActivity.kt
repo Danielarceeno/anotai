@@ -231,9 +231,11 @@ class CalendarActivity : AppCompatActivity() {
     private fun animateDayPress(view: View, event: android.view.MotionEvent): Boolean {
         if (!view.isClickable) return false
         when (event.actionMasked) {
-            android.view.MotionEvent.ACTION_DOWN ->
+            android.view.MotionEvent.ACTION_DOWN -> {
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 view.animate().scaleX(0.92f).scaleY(0.92f).setDuration(100)
                     .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+            }
             android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
                 view.animate().scaleX(1f).scaleY(1f).setDuration(220)
                     .setInterpolator(android.view.animation.OvershootInterpolator(3f)).start()

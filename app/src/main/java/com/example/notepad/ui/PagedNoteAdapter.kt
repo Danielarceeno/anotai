@@ -67,7 +67,23 @@ class PagedNoteAdapter(
             binding.repeatIcon.visibility = if (note.repetition != Note.REPEAT_NONE) android.view.View.VISIBLE else android.view.View.GONE
             binding.repeatIcon.imageTintList = ColorStateList.valueOf(textColor)
             binding.root.setOnClickListener { onClick(note) }
-            binding.root.setOnLongClickListener { onLongClick(note); true }
+            binding.root.setOnLongClickListener {
+                it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                onLongClick(note)
+                true
+            }
+            // Lightens the card's own color on touch-down, back to normal on release -- see
+            // NoteColors.pressColor's doc for why a plain fixed-color ripple doesn't work well
+            // here. Returns false so the click/long-click listeners above still fire normally.
+            binding.root.setOnTouchListener { view, event ->
+                when (event.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN ->
+                        (view as com.google.android.material.card.MaterialCardView).setCardBackgroundColor(NoteColors.pressColor(cardColor))
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
+                        (view as com.google.android.material.card.MaterialCardView).setCardBackgroundColor(cardColor)
+                }
+                false
+            }
 
             val strokeWidthPx = (3 * binding.root.context.resources.displayMetrics.density).toInt()
             binding.root.strokeWidth = if (isSelected) strokeWidthPx else 0
@@ -77,6 +93,7 @@ class PagedNoteAdapter(
             binding.pinButton.setImageResource(if (note.pinned) R.drawable.ic_star_filled else R.drawable.ic_star_outline)
             binding.pinButton.imageTintList = ColorStateList.valueOf(textColor)
             binding.pinButton.setOnClickListener {
+                it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 if (inSelectionMode) onLongClick(note) else onTogglePin(note)
             }
         }

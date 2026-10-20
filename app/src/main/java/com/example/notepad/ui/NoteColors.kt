@@ -25,4 +25,11 @@ object NoteColors {
         val luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
         return luminance > 0.6
     }
+
+    /** [colorInt] lightened a bit, for a note card's own press-feedback tint -- each card is a
+     *  different, often saturated color, so a plain fixed-color ripple on top either barely
+     *  shows or looks muddy; blending the card's *own* color toward white instead keeps the
+     *  feedback obviously tied to that specific card. */
+    fun pressColor(colorInt: Int): Int =
+        androidx.core.graphics.ColorUtils.blendARGB(colorInt, android.graphics.Color.WHITE, 0.2f)
 }
