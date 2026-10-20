@@ -15,6 +15,7 @@ import com.example.notepad.ui.CalendarActivity
 import com.example.notepad.ui.NoteEditorActivity
 import java.util.Calendar
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -42,6 +43,11 @@ import org.junit.runner.RunWith
  * [PendingIntent.FLAG_NO_CREATE] lookup in a *later* method regardless of that method's own due
  * notes -- caught on CI as `severalNotesDue_fallsBackToTheCalendar` finding a stale
  * [NoteEditorActivity]-targeting match left over from `exactlyOneNoteDue_opensThatNoteDirectly`.
+ *
+ * This class also actually posts a real notification (that's the thing under test); [tearDown]
+ * cancels it afterward so it doesn't outlive this class and trip up another test's assumptions
+ * about nothing being posted yet -- caught on CI as [CalendarResumeRefreshesReminderTest] failing
+ * its own "nothing showing before any note is due" precondition.
  */
 @RunWith(AndroidJUnit4::class)
 class ReminderNotifierSingleNoteOpensNoteTest {
@@ -65,6 +71,13 @@ class ReminderNotifierSingleNoteOpensNoteTest {
         // outlives it and leaks into this one.
         pendingIntentTargeting(context, NoteEditorActivity::class.java)?.cancel()
         pendingIntentTargeting(context, CalendarActivity::class.java)?.cancel()
+        androidx.core.app.NotificationManagerCompat.from(context).cancel(ReminderNotifier.NOTIFICATION_ID)
+    }
+
+    @After
+    fun tearDown() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        androidx.core.app.NotificationManagerCompat.from(context).cancel(ReminderNotifier.NOTIFICATION_ID)
     }
 
     private fun todayStart(): Long = Calendar.getInstance().apply {

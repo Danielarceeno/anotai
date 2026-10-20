@@ -134,3 +134,39 @@ all three caused by this session's own new tests, not by anything pre-existing o
 All three were real bugs in the new tests' own isolation, not the app or the CI environment --
 exactly the kind of thing a first real run against a slower, differently-timed emulator surfaces
 that a fast local pass might not.
+
+### Round 2: four more, after fixing the above
+
+Pushing the round-1 fixes and watching the next run (`gh run watch`) surfaced four more failures
+from the same underlying class of problem -- test state leaking across methods/classes in the
+same instrumentation process, not anything environment-specific:
+
+1. **`CalendarResumeRefreshesReminderTest`** failed its own "nothing showing yet" precondition --
+   `ReminderNotifierSingleNoteOpensNoteTest` posts a real notification as part of what it's
+   testing, and never cancelled it. **Fix**: cancel `ReminderNotifier.NOTIFICATION_ID` in both
+   `@Before` and `@After` there.
+2. **`SettingsThemeTest`** hit the exact same `Activity.recreate()` / "must be called from main
+   thread" failure as round 1, meaning the round-1 fix didn't fully land: `getActivitiesInStage
+   (Stage.RESUMED)` right after `perform(click())` can run *before* the newly-started
+   `CalendarActivity` actually reaches `RESUMED` (starting an Activity is asynchronous). **Fix**:
+   added `Instrumentation.waitForIdleSync()` first, and widened the stage check to
+   `CREATED`/`STARTED`/`RESUMED`/`PAUSED`/`STOPPED` instead of only `RESUMED`.
+3. **`TrashFlowTest`'s two tests** both failed with the trashed note's row simply never being
+   found -- inserting+trashing a note *inside* the `@Test` body, after `TrashActivity` had already
+   subscribed to `observeTrashed()`, raced Room's background invalidation-tracker requery against
+   the very next (unwaited) Espresso assertion. **Fix**: seed the note *before* launching the
+   Activity (`ActivityScenario.launch`, not `ActivityScenarioRule`) instead of chaining
+   `resetStateRule`, mirroring `CalendarDayDialogShowsNotesTest`'s existing pattern for the exact
+   same reason -- the Activity's very first LiveData emission already has the right data, so
+   there's no async round-trip left to race. Applied the same fix to `FoldersFlowTest`'s rename
+   and delete tests (same shape, hadn't failed yet but equally exposed).
+
+This is a stronger, more general lesson than round 1's: **inserting/mutating the database from
+inside a `@Test` body, after the Activity under test has already launched and subscribed to a
+LiveData, is unsafe without an explicit wait** -- Espresso's idle-sync covers the main thread's
+own pending work, not an arbitrary background-executor round trip (Room's invalidation tracker)
+that hasn't been enqueued back onto main yet by the time the assertion runs. The existing
+pre-session tests avoid this either by seeding before launch (`CalendarDayDialogShowsNotesTest`,
+`SearchShowsAllNotesTest`) or by polling with a timeout after mutating a running Activity's data
+(`SelectAllNotesTest`, `CalendarResumeRefreshesReminderTest`) -- this session's new tests now
+follow the same two patterns throughout instead of a bare, unwaited assertion.

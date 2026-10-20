@@ -66,9 +66,17 @@ class SecurityLockFlowTest {
     fun cleanUp() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         SecurityPrefs.clearPin(context)
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        // Give the just-started CalendarActivity's own onCreate/onResume a chance to actually
+        // run first -- starting it is asynchronous, so checking Stage.RESUMED immediately after
+        // perform(click()) returns could still miss it (a real, observed timing gap on CI).
+        instrumentation.waitForIdleSync()
+        instrumentation.runOnMainSync {
+            val monitor = ActivityLifecycleMonitorRegistry.getInstance()
+            listOf(Stage.CREATED, Stage.STARTED, Stage.RESUMED, Stage.PAUSED, Stage.STOPPED)
+                .flatMap { monitor.getActivitiesInStage(it) }
                 .filterIsInstance<CalendarActivity>()
+                .distinct()
                 .forEach { it.finish() }
         }
     }

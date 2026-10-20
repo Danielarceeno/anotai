@@ -1,5 +1,6 @@
 package com.example.notepad
 
+import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
@@ -7,7 +8,6 @@ import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
 import androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
-import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.notepad.data.AppDatabase
@@ -19,9 +19,7 @@ import org.hamcrest.Matchers.allOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 
 /**
@@ -34,23 +32,23 @@ import org.junit.runner.RunWith
  * ("Delete forever" is both), so a plain `withText(...)` match would be ambiguous -- same fix as
  * [FoldersFlowTest].
  *
- * [TestPrereqs.resetStateRule] (not a plain `@Before`) is chained to run *before*
- * [ActivityScenarioRule] launches the Activity, for the same reason [FoldersFlowTest] needs it --
- * see that class's doc comment (caught there as a real `AmbiguousViewMatcherException` on a CI
- * run; applied here too since this test has the identical structure/risk).
+ * Each test seeds its own trashed note *before* launching [TrashActivity] via a plain
+ * [ActivityScenario.launch] call, not [androidx.test.ext.junit.rules.ActivityScenarioRule]:
+ * [TrashActivity]'s `onCreate` subscribes to `observeTrashed()` immediately, so inserting+trashing
+ * *after* that subscription races Room's background invalidation-tracker requery against the very
+ * next Espresso assertion, which doesn't wait for it -- caught on a real CI run as the expected
+ * note's row simply not being found at all. Seeding first means the Activity's very first
+ * emission already has the right data, the same fix [FoldersFlowTest]/[CalendarDayDialogShowsNotesTest]
+ * use for the identical reason.
  */
 @RunWith(AndroidJUnit4::class)
 class TrashFlowTest {
 
-    private val activityRule = ActivityScenarioRule(TrashActivity::class.java)
-
-    @get:Rule
-    val ruleChain: RuleChain = RuleChain.outerRule(TestPrereqs.resetStateRule()).around(activityRule)
-
     private lateinit var repository: NoteRepository
 
     @Before
-    fun setUpRepository() {
+    fun resetState() {
+        TestPrereqs.resetAppState()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val db = AppDatabase.getInstance(context)
         repository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())
@@ -63,6 +61,7 @@ class TrashFlowTest {
             repository.delete(id)
             id
         }
+        ActivityScenario.launch(TrashActivity::class.java)
 
         onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Trashed note"))))
         onView(withId(R.id.restoreButton)).perform(click())
@@ -80,6 +79,7 @@ class TrashFlowTest {
             repository.delete(id)
             id
         }
+        ActivityScenario.launch(TrashActivity::class.java)
 
         onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Gone for good"))))
         onView(withId(R.id.deleteForeverButton)).perform(click())
