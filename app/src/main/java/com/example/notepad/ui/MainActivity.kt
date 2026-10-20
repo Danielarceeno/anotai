@@ -147,6 +147,14 @@ class MainActivity : AppCompatActivity() {
         )
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
+        // No empty-state view existed before: a brand-new user, or an emptied list/folder,
+        // just saw a blank screen with only the FAB. LoadState (not a plain itemCount check)
+        // is what tells "empty because there's genuinely nothing here" apart from "empty
+        // because the first page just hasn't loaded yet".
+        adapter.addLoadStateListener { loadState ->
+            val isEmpty = loadState.refresh is androidx.paging.LoadState.NotLoading && adapter.itemCount == 0
+            binding.emptyView.visibility = if (isEmpty) android.view.View.VISIBLE else android.view.View.GONE
+        }
         // Paging3's own AsyncPagingDataDiffer dispatches its own granular notify calls as pages
         // load/change; RecyclerView's default item animator doing its predictive-layout pass on
         // top of that was crashing with "Inconsistency detected. Invalid view holder adapter
@@ -274,6 +282,19 @@ class MainActivity : AppCompatActivity() {
                     // detected" crash right after deleting.
                 }
                 clearSelection()
+                // Single delete (swipe, or the editor's own delete button) already offered an
+                // undo snackbar -- bulk delete silently vanishing the selection was the one
+                // inconsistent path, even though the notes were already recoverable via Trash.
+                Snackbar.make(binding.root, resources.getQuantityString(R.plurals.bulk_delete_undo_message, ids.size, ids.size), Snackbar.LENGTH_LONG)
+                    .setAction(R.string.action_undo) {
+                        lifecycleScope.launch {
+                            ids.forEach { id ->
+                                repository.restore(id)
+                                repository.getById(id)?.let { com.example.notepad.notification.NoteReminderScheduler.schedule(this@MainActivity, it) }
+                            }
+                        }
+                    }
+                    .show()
             }
             .setNegativeButton(R.string.reminder_cancel, null)
             .show()

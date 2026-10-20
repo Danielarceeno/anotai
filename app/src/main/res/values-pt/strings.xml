@@ -11,6 +11,7 @@
     <string name="note_color">Cor da nota</string>
     <string name="editing_label">Editando</string>
     <string name="menu_delete">Excluir</string>
+    <string name="more_options">Mais opções</string>
     <string name="add_note">Adicionar nota</string>
     <string name="add_item_hint">Adicionar item</string>
     <string name="set_reminder">Definir lembrete</string>
@@ -97,6 +98,7 @@
     <string name="widget_description">Mostra as notas e lembretes de hoje na tela inicial</string>
 
     <string name="trash_title">Lixeira</string>
+    <string name="main_notes_empty">Nenhuma nota ainda — toque em + para adicionar</string>
     <string name="trash_empty">A lixeira está vazia</string>
     <string name="trash_restore">Restaurar</string>
     <string name="trash_delete_forever">Excluir permanentemente</string>
@@ -120,8 +122,11 @@
     <string name="theme_system">Padrão do sistema</string>
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Escuro</string>
+    <string name="settings_calendar_title">Calendário</string>
+    <string name="settings_notifications_section_title">Notificações</string>
     <string name="settings_notifications_title">Notificações de lembrete</string>
     <string name="settings_reminder_time_title">Horário do lembrete diário</string>
+    <string name="settings_organization_title">Organização</string>
     <string name="settings_folders_title">Pastas</string>
     <string name="settings_trash_title">Lixeira</string>
     <string name="settings_widget_title">Widget</string>
@@ -172,6 +177,10 @@
     <plurals name="bulk_delete_confirm">
         <item quantity="one">Mover %1$d nota para a lixeira?</item>
         <item quantity="other">Mover %1$d notas para a lixeira?</item>
+    </plurals>
+    <plurals name="bulk_delete_undo_message">
+        <item quantity="one">%1$d nota movida para a lixeira</item>
+        <item quantity="other">%1$d notas movidas para a lixeira</item>
     </plurals>
     <plurals name="import_success">
         <item quantity="one">%1$d nota importada</item>
