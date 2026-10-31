@@ -6,6 +6,118 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 7 — Brazilian holidays, overdue cue, notification/widget navigation (2026-10-31)
+
+User-driven session with three iterations on the same feature, each refined after direct
+feedback -- notable mainly for how much the overdue cue changed shape between asks.
+
+### Brazilian national holidays (new, opt-in)
+`BrazilianHolidays` (new, `data/`): fixed-date holidays plus the Easter-derived moveable ones
+(Carnaval, Sexta-feira Santa, Corpus Christi) computed per year via the standard Anonymous
+Gregorian algorithm, not a hardcoded table -- correct for any year without maintenance. Results
+memoized per year (`cachedYear`/`cachedHolidays`) since the calendar grid's 42 cells would
+otherwise redo the Easter arithmetic up to 42 times for the same year.
+
+Gated behind a new `CalendarPrefs.isHolidaysEnabled` (off by default) and a matching Settings
+switch ("Show Brazilian holidays"). When on: a holiday's day-number is tinted green
+(`calendar_holiday_number`, wins over the plain Saturday/Sunday red/blue tint) on the grid, and
+its name is appended to the day dialog's title (e.g. "Fri, December 25 — Natal").
+
+### Overdue-task cue: three iterations
+1. **First pass**: a day strictly before today with an incomplete reminder tinted its whole
+   calendar-grid cell with a pale red wash (`calendar_overdue_background`, a translucent overlay).
+2. **User feedback — "não queria que ficasse vermelhinho a célula, mas sim só as letras quando
+   clico na tarefa"**: reverted the cell tint entirely. Moved the cue into `DayNotesDialog`
+   instead -- only the overdue task's own title *text* turns red (`task_overdue_text`), computed
+   locally per row (`isOverdue(dayMillis, isDoneToday)`) rather than carried on `CalendarDay`.
+   Also made it live: checking the "done" toggle inside the same dialog clears the red
+   immediately (`applyOverdueColor` called again from the checkbox's listener), not just on next
+   open.
+2a. **Follow-up — "o vermelho... igual dos dias de sáb"**: `task_overdue_text` changed from its
+    own shade (`#D32F2F`) to the exact same red already used for Saturday day-numbers
+    (`calendar_saturday_number`, `#E57373`), for visual consistency rather than a third red in
+    the app.
+3. **User feedback — wanted it as a Settings option too**: added
+   `CalendarPrefs.isOverdueHighlightEnabled` (on by default, unlike every other toggle in this
+   file -- it's gating pre-existing behavior, not introducing new) and a "Highlight overdue
+   tasks" switch. `DayNotesDialog.isOverdue` now short-circuits to `false` when the context's
+   `CalendarPrefs` value is off.
+
+### Notification and widget: stop deep-linking into the note editor
+**User feedback — "quero que não vá para dentro da notificação e sim para mesma coisa quando
+clico no dia e aparece a task"**: tapping the daily reminder notification used to jump straight
+into a single due note's own editor when exactly one note was due (added in an earlier session,
+now reverted); the home-screen widget's per-note taps always did. Both now open the same day
+dialog tapping that day on the calendar shows:
+- `ReminderNotifier.showNotification` dropped its `notes.size == 1` branch -- always builds a
+  `CalendarActivity` + `EXTRA_OPEN_TODAY` intent now, regardless of how many notes are due.
+- `CalendarActivity` gained a new, more general `EXTRA_OPEN_DAY_MILLIS` (a specific start-of-day
+  millis) alongside the existing `EXTRA_OPEN_TODAY`, plus `navigateCalendarToMonthOf` so the
+  grid itself jumps to the right month first, not just the dialog showing the right notes over
+  whatever month happened to already be displayed.
+- The widget's `TodayNotesRemoteViewsFactory` (in `TodayNotesRemoteViewsService.kt`) now tracks
+  each row's own matched due day (`WidgetEntry(note, dayStart)`, not just the `Note`), since a
+  widget configured to show 3/7 days can have rows for different days -- each one's tap now opens
+  *its own* day's dialog via `EXTRA_OPEN_DAY_MILLIS`, not always "today", and not the note's
+  editor.
+
+### Test-suite ripple from the behavior reversion
+`ReminderNotifierSingleNoteOpensNoteTest` (asserted the old single-note-opens-editor behavior)
+replaced with `ReminderNotifierOpensCalendarDayTest` (asserts the new always-calendar behavior).
+`CalendarOverdueHighlightTest` rewritten from checking a grid cell's background color to checking
+`DayNotesDialog` title text color via a small custom Espresso matcher
+(`TextView.currentTextColor`), since the cue moved there. New `CalendarOpenSpecificDayTest`
+covers `EXTRA_OPEN_DAY_MILLIS` landing on the right day *and* the right month. New
+`CalendarHolidaysTest`, `SettingsHolidaysToggleTest`, `SettingsOverdueHighlightToggleTest` cover
+the two new Settings switches end to end.
+
+Fixing these surfaced a real cross-test notification leak, same class of bug `TESTING.md`'s round
+2 already documented for a different pair of tests: a test that inserts a note due today and
+resumes `CalendarActivity` (whose `onResume` always runs an immediate reminder check) posts a
+*real* system notification as a side effect, which can still be in flight when the next test
+class's `@Before` runs. Rather than patch each new test individually, moved the fix into
+`TestPrereqs.resetAppState()` itself (cancels `ReminderNotifier.NOTIFICATION_ID` on every reset,
+not just in the reminder-specific test classes) -- the shared root-cause fix this class of flake
+has needed since round 2.
+
+### Verification
+- `BrazilianHolidays`' fixed and Easter-derived dates checked against the *actual* public
+  calendar for 2025/2026 (not re-derived from the same algorithm under test), including a
+  cross-year check that the per-year memoization doesn't leak a stale Easter date.
+- Local emulator (`medium_phone` AVD, started fresh this session since `adb`/`emulator` weren't
+  on `PATH` -- the real SDK was under `AppData/Local/Android/Sdk`, not the project's bundled
+  `cmdline-tools`): **44 instrumented tests, 0 failures**, run with the user's physical phone
+  temporarily `adb disconnect`'d first so the automated suite's `TestPrereqs.resetAppState()`
+  (wipes all DB tables) wouldn't touch their real data.
+- Manual pass on both the emulator and the user's physical phone (connected over Wi-Fi ADB,
+  `adb connect <ip>:<port>`): overdue task's title red in the day dialog with the cell itself
+  unchanged, color turning back to normal live on checking it done, holiday name/tint showing
+  with the Settings toggle on and not with it off, both new Settings switches reflecting their
+  defaults (holidays off, overdue-highlight on).
+
+### Known gaps
+- No automated test actually simulates tapping a *posted* notification or a *placed* widget row
+  (both fundamentally hard to drive from Espresso -- see `TESTING.md`'s existing widget-rendering
+  gap) -- the `PendingIntent`-target checks (`ReminderNotifierOpensCalendarDayTest`) and the
+  `EXTRA_OPEN_DAY_MILLIS` navigation test (`CalendarOpenSpecificDayTest`) cover the intent-wiring
+  side; the widget's own `fillInIntent` construction has no test at all (same pre-existing gap
+  `WidgetProvidersRegisteredTest`'s doc already calls out for widget rendering generally).
+- `BrazilianHolidays` only covers *national* holidays -- no state/municipal ones (would need a
+  per-state setting, not asked for).
+
+### Files touched
+`data/BrazilianHolidays.kt` (new), `ui/CalendarPrefs.kt`, `ui/CalendarActivity.kt`,
+`ui/DayNotesDialog.kt`, `ui/SettingsActivity.kt`, `res/layout/activity_settings.xml`,
+`res/values(-pt)/strings.xml`, `res/values/colors.xml`, `notification/ReminderNotifier.kt`,
+`widget/TodayNotesWidgetProvider.kt`, `widget/TodayNotesRemoteViewsService.kt`.
+Tests: `app/src/test/java/com/example/notepad/data/BrazilianHolidaysTest.kt` (new),
+`app/src/androidTest/java/com/example/notepad/{CalendarHolidaysTest,CalendarOpenSpecificDayTest,
+CalendarOverdueHighlightTest,ReminderNotifierOpensCalendarDayTest,SettingsHolidaysToggleTest,
+SettingsOverdueHighlightToggleTest,TestPrereqs}.kt` (first six new/rewritten, `TestPrereqs`
+modified); `ReminderNotifierSingleNoteOpensNoteTest.kt` deleted.
+
+---
+
 ## Session 6 — Drive sync rework, performance pass, checklist redesign (2026-10-19 to 2026-10-20)
 
 Long, multi-part session driven by a mix of user bug reports and UX requests, not a single

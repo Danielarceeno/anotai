@@ -31,16 +31,20 @@ library).
 | `data/RecurrenceUtilsTest` | Every `Note.REPEAT_*` mode's `occursOn`, plus `nextOccurrenceOnOrAfter` (what schedules a recurring note's exact-time alarm) |
 | `data/RemindersCacheTest` | TTL reuse and `invalidate()` forcing a re-fetch |
 | `data/drive/DriveBackupHelperTest` | `mergeByUuid`: newer-wins conflicts, tombstone drops (both directions -- locally deleted and cross-device deleted), duplicate-within-one-backup dedup |
+| `data/BrazilianHolidaysTest` | Fixed and Easter-derived (Carnaval, Sexta-feira Santa, Corpus Christi) holidays against the real public calendar for two different years; per-year memoization doesn't leak a stale date across years |
 | `ui/NotesSortPrefsTest` | Each sort mode's ordering, pinned-always-first |
 
 ## Instrumented tests (`app/src/androidTest/`)
 
 | File | Covers |
 |---|---|
-| `TestPrereqs` | Not a test itself -- shared `resetAppState()` (clear PIN, unlock, wipe all DB tables) so every test starts clean regardless of what ran before it |
+| `TestPrereqs` | Not a test itself -- shared `resetAppState()` (clear PIN, unlock, wipe all DB tables, cancel any posted reminder notification) so every test starts clean regardless of what ran before it |
 | `CalendarActivityTest` | Cold start of the launcher screen doesn't crash |
 | `CalendarDayDialogShowsNotesTest` | Day dialog shows a plain, a recurring, and a pinned note together |
 | `CalendarResumeRefreshesReminderTest` | Reminder notification refreshes on `onResume`, not only `onCreate` (regression: it used to not show up until the app was fully restarted) |
+| **`CalendarHolidaysTest`** *(new)* | Settings-gated Brazilian holidays: off by default shows a plain day title; on shows a fixed (Natal) and a moveable (Carnaval) holiday's name; an ordinary day never gets one |
+| **`CalendarOpenSpecificDayTest`** *(new)* | `CalendarActivity.EXTRA_OPEN_DAY_MILLIS` (what the notification/widget now use) opens the right day's dialog *and* jumps the grid to the right month |
+| **`CalendarOverdueHighlightTest`** *(new)* | An overdue, not-done task's title is red in the day dialog; a completed or not-yet-due one isn't; the Settings toggle turns it off |
 | `CreateEditNoteFlowTest` | Create a text note and a checklist note from the notes list, both show up |
 | `ChecklistAddRowTest` | The checklist's trailing "add item" row stays usable for 3 items in a row (regression guard for the add-row redesign) |
 | `SelectAllNotesTest` | Long-press → select all → bulk delete trashes every note |
@@ -52,11 +56,13 @@ library).
 | `BackupJsonRoundTripTest` | Plain JSON export/import and the Drive tombstone-carrying format both round-trip, including a legacy (pre-tombstone) backup file |
 | `DriveSyncActivityTest` | Signed-out state renders without crashing |
 | `ReminderPrefsDefaultTest` | The (no-longer user-configurable) daily reminder time still defaults to 9:00am |
-| **`FoldersFlowTest`** *(new)* | Create / rename a folder; deleting one clears `folderId` on its notes instead of deleting them |
-| **`TrashFlowTest`** *(new)* | Restoring a trashed note reactivates it and clears its tombstone; "Delete forever" actually removes the row |
-| **`SecurityLockFlowTest`** *(new)* | Wrong PIN shows the error and stays locked; correct PIN unlocks (`LockState`) |
-| **`ReminderNotifierSingleNoteOpensNoteTest`** *(new)* | Regression guard for this session's change: exactly one note due deep-links the notification straight to it; 2+ notes due still falls back to the calendar |
-| **`WidgetProvidersRegisteredTest`** *(new)* | All four widget providers (the resizable one + the new 1x1 / 2x2 list / 2x2 summary) are actually installed and parse a non-zero size from their `appwidget-provider` XML |
+| `FoldersFlowTest` | Create / rename a folder; deleting one clears `folderId` on its notes instead of deleting them |
+| `TrashFlowTest` | Restoring a trashed note reactivates it and clears its tombstone; "Delete forever" actually removes the row |
+| `SecurityLockFlowTest` | Wrong PIN shows the error and stays locked; correct PIN unlocks (`LockState`) |
+| **`ReminderNotifierOpensCalendarDayTest`** *(new, replaces `ReminderNotifierSingleNoteOpensNoteTest`)* | Tapping the daily reminder notification always opens the calendar's day dialog, never a note's own editor -- true whether one note or several are due (the behavior this guards was reverted this session) |
+| `WidgetProvidersRegisteredTest` | All four widget providers (the resizable one + the new 1x1 / 2x2 list / 2x2 summary) are actually installed and parse a non-zero size from their `appwidget-provider` XML |
+| **`SettingsHolidaysToggleTest`** *(new)* | The "Show Brazilian holidays" switch is off by default and persists through `CalendarPrefs` when flipped |
+| **`SettingsOverdueHighlightToggleTest`** *(new)* | The "Highlight overdue tasks" switch is *on* by default (pre-existing behavior being made optional, not a new opt-in) and persists through `CalendarPrefs` when flipped |
 
 ### Known gaps (not covered, and why)
 
@@ -72,7 +78,8 @@ library).
 - **Widget *rendering*** -- `WidgetProvidersRegisteredTest` confirms the four providers are
   installed and sized, not that their `RemoteViews` actually render correctly once placed (no
   reliable way to place a widget via instrumentation without `AppWidgetHost`, which this suite
-  doesn't use yet).
+  doesn't use yet). That includes `TodayNotesRemoteViewsFactory`'s per-row `fillInIntent`
+  (`CalendarActivity.EXTRA_OPEN_DAY_MILLIS`, Session 7) -- covered by code review only, same gap.
 - **`NoteFormatting`** (bold/italic/underline) and **`NoteColors`** (`isLight`/`pressColor`) --
   both only usable as instrumented tests (real `android.text.Html`/`android.graphics.Color`), and
   neither has one yet.

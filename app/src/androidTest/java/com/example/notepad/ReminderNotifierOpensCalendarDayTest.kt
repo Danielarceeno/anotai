@@ -24,10 +24,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Regression test for a behavior change: tapping the reminder notification used to always open
- * the calendar's today view, even when exactly one note was due. It now opens that note
- * directly ([ReminderNotifier]'s `showNotification`); with more than one note due there's still
- * no single note to deep-link to, so it keeps falling back to the calendar.
+ * Regression test for a user request: tapping the reminder notification used to deep-link
+ * straight into a note's own editor when exactly one note was due, and only fell back to the
+ * calendar's day dialog with more than one. The user asked for the notification to always behave
+ * like tapping that day on the calendar -- never straight into the editor -- regardless of how
+ * many notes are due, so [ReminderNotifier.showNotification] now always targets
+ * [CalendarActivity] with [CalendarActivity.EXTRA_OPEN_TODAY].
  *
  * A posted system notification can't be tapped from Espresso (it lives outside the app's own
  * view hierarchy), so this checks which Activity its content intent actually targets via
@@ -41,16 +43,14 @@ import org.junit.runner.RunWith
  * [resetState]'s explicit [PendingIntent.cancel] calls below, a PendingIntent created by an
  * *earlier* test method here (same request code, same target) would still satisfy a
  * [PendingIntent.FLAG_NO_CREATE] lookup in a *later* method regardless of that method's own due
- * notes -- caught on CI as `severalNotesDue_fallsBackToTheCalendar` finding a stale
- * [NoteEditorActivity]-targeting match left over from `exactlyOneNoteDue_opensThatNoteDirectly`.
+ * notes -- this bit a previous version of this test that posted straight to [NoteEditorActivity].
  *
  * This class also actually posts a real notification (that's the thing under test); [tearDown]
  * cancels it afterward so it doesn't outlive this class and trip up another test's assumptions
- * about nothing being posted yet -- caught on CI as [CalendarResumeRefreshesReminderTest] failing
- * its own "nothing showing before any note is due" precondition.
+ * about nothing being posted yet (e.g. [CalendarResumeRefreshesReminderTest]).
  */
 @RunWith(AndroidJUnit4::class)
-class ReminderNotifierSingleNoteOpensNoteTest {
+class ReminderNotifierOpensCalendarDayTest {
 
     @get:Rule
     val permissionRule = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -91,20 +91,24 @@ class ReminderNotifierSingleNoteOpensNoteTest {
         )
 
     @Test
-    fun exactlyOneNoteDue_opensThatNoteDirectly() = runBlocking {
+    fun exactlyOneNoteDue_stillOpensTheCalendarDayDialog_notTheNoteDirectly() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         repository.insert(Note(title = "Only one due", body = "", dueDate = todayStart()))
 
         ReminderNotifier.checkAndNotify(context)
 
-        assertNotNull(
-            "a single due note should deep-link straight to it",
+        assertNull(
+            "a single due note should no longer deep-link straight into its editor",
             pendingIntentTargeting(context, NoteEditorActivity::class.java)
+        )
+        assertNotNull(
+            "it should open the calendar's today view instead, same as tapping that day",
+            pendingIntentTargeting(context, CalendarActivity::class.java)
         )
     }
 
     @Test
-    fun severalNotesDue_fallsBackToTheCalendar() = runBlocking {
+    fun severalNotesDue_alsoOpensTheCalendarDayDialog() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         repository.insert(Note(title = "First", body = "", dueDate = todayStart()))
         repository.insert(Note(title = "Second", body = "", dueDate = todayStart()))
@@ -112,11 +116,11 @@ class ReminderNotifierSingleNoteOpensNoteTest {
         ReminderNotifier.checkAndNotify(context)
 
         assertNull(
-            "with more than one note due there's no single note to deep-link to",
+            "there's still no single note to deep-link to with more than one due",
             pendingIntentTargeting(context, NoteEditorActivity::class.java)
         )
         assertNotNull(
-            "multiple due notes should still fall back to the calendar's today view",
+            "multiple due notes should open the calendar's today view",
             pendingIntentTargeting(context, CalendarActivity::class.java)
         )
     }

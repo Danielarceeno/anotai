@@ -19,6 +19,7 @@ import com.example.notepad.databinding.ItemCalendarDayBinding
 import com.google.android.material.snackbar.Snackbar
 import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
+import com.example.notepad.data.BrazilianHolidays
 import com.example.notepad.data.ChecklistItem
 import com.example.notepad.data.Note
 import com.example.notepad.data.drive.DriveBackupHelper
@@ -36,8 +37,18 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 
 /** [dotColorIndices] is capped at 3 (as many dots as the grid cell has room for), one per note
- *  due that day, each tinted to that note's own color -- see [CalendarActivity.renderDays]. */
-data class CalendarDay(val dayOfMonth: Int, val dateMillis: Long, val inCurrentMonth: Boolean, val isToday: Boolean, val dotColorIndices: List<Int>)
+ *  due that day, each tinted to that note's own color -- see [CalendarActivity.renderDays].
+ *  [holidayName] is null unless [CalendarPrefs.isHolidaysEnabled]. An overdue, not-done task on
+ *  a given day is flagged in [DayNotesDialog] itself (by its own title text, in red), not here on
+ *  the grid cell -- see that class's `isOverdue` check. */
+data class CalendarDay(
+    val dayOfMonth: Int,
+    val dateMillis: Long,
+    val inCurrentMonth: Boolean,
+    val isToday: Boolean,
+    val dotColorIndices: List<Int>,
+    val holidayName: String?
+)
 
 /**
  * Monthly grid with a dot under any day that has a note due, mirroring the
@@ -60,10 +71,11 @@ class CalendarActivity : AppCompatActivity() {
     private var gridStartCalendar: Calendar = Calendar.getInstance()
     private var displayedMonth: Int = -1
     private var selectedDayMillis: Long = startOfDay(Calendar.getInstance())
-    /** Set from [EXTRA_OPEN_TODAY] (the widget's tap target) on create, and consumed the first
-     *  time [allReminders] arrives -- the day dialog needs that data loaded first, so it can't
-     *  just be shown synchronously in onCreate. */
-    private var pendingOpenToday = false
+    /** Set from [EXTRA_OPEN_DAY_MILLIS] or [EXTRA_OPEN_TODAY] (the daily notification and the
+     *  widget's taps -- see [openDayMillisFrom]) on create, and consumed the first time
+     *  [allReminders] arrives -- the day dialog needs that data loaded first, so it can't just be
+     *  shown synchronously in onCreate. */
+    private var pendingOpenDayMillis: Long? = null
 
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -134,13 +146,14 @@ class CalendarActivity : AppCompatActivity() {
         repository.observeAllReminders().observe(this, Observer { notes ->
             allReminders = notes
             buildDays()
-            if (pendingOpenToday) {
-                pendingOpenToday = false
-                showDayDialog(startOfDay(Calendar.getInstance()))
+            pendingOpenDayMillis?.let { day ->
+                pendingOpenDayMillis = null
+                showDayDialog(day)
             }
         })
 
-        pendingOpenToday = intent.getBooleanExtra(EXTRA_OPEN_TODAY, false)
+        pendingOpenDayMillis = openDayMillisFrom(intent)
+        pendingOpenDayMillis?.let { navigateCalendarToMonthOf(it) }
         renderMonth()
         handleShortcutIntent(intent)
     }
@@ -149,11 +162,32 @@ class CalendarActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         // Already running (and allReminders already loaded), so this can show the dialog right
-        // away instead of going through the pendingOpenToday/onCreate dance.
-        if (intent.getBooleanExtra(EXTRA_OPEN_TODAY, false)) {
-            showDayDialog(startOfDay(Calendar.getInstance()))
+        // away instead of going through the pendingOpenDayMillis/onCreate dance.
+        openDayMillisFrom(intent)?.let { day ->
+            navigateCalendarToMonthOf(day)
+            renderMonth()
+            showDayDialog(day)
         }
         handleShortcutIntent(intent)
+    }
+
+    /** [EXTRA_OPEN_DAY_MILLIS] (a specific day -- the widget's per-note taps) wins over the
+     *  plain [EXTRA_OPEN_TODAY] flag (the daily notification, and the widget's title/add-button
+     *  taps, which are always about today); null if the intent asks for neither. */
+    private fun openDayMillisFrom(intent: Intent): Long? = when {
+        intent.hasExtra(EXTRA_OPEN_DAY_MILLIS) -> intent.getLongExtra(EXTRA_OPEN_DAY_MILLIS, 0L)
+        intent.getBooleanExtra(EXTRA_OPEN_TODAY, false) -> startOfDay(Calendar.getInstance())
+        else -> null
+    }
+
+    /** Moves [calendar] (and so the next [renderMonth]) to the month containing [dayMillis] --
+     *  an intent-driven jump (notification, widget) can land on a day outside whatever month the
+     *  grid would otherwise open to, e.g. a widget item a few days into next month. */
+    private fun navigateCalendarToMonthOf(dayMillis: Long) {
+        val target = Calendar.getInstance().apply { timeInMillis = dayMillis }
+        calendar.set(Calendar.YEAR, target.get(Calendar.YEAR))
+        calendar.set(Calendar.MONTH, target.get(Calendar.MONTH))
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
     }
 
     /** Re-checked on every return to this screen, not just on cold start: this is the app's
@@ -461,17 +495,19 @@ class CalendarActivity : AppCompatActivity() {
     private fun buildDays() {
         val cursor = gridStartCalendar.clone() as Calendar
         val todayMillis = startOfDay(Calendar.getInstance())
+        val holidaysEnabled = CalendarPrefs.isHolidaysEnabled(this)
         val days = mutableListOf<CalendarDay>()
         repeat(42) {
             val dayStart = startOfDay(cursor)
+            val notesForDay = allReminders.filter { RecurrenceUtils.occursOn(it, dayStart) }
             days.add(
                 CalendarDay(
                     dayOfMonth = cursor.get(Calendar.DAY_OF_MONTH),
                     dateMillis = dayStart,
                     inCurrentMonth = cursor.get(Calendar.MONTH) == displayedMonth,
                     isToday = dayStart == todayMillis,
-                    dotColorIndices = allReminders.filter { RecurrenceUtils.occursOn(it, dayStart) }
-                        .map { it.colorIndex }.take(3)
+                    dotColorIndices = notesForDay.map { it.colorIndex }.take(3),
+                    holidayName = if (holidaysEnabled) BrazilianHolidays.nameFor(dayStart) else null
                 )
             )
             cursor.add(Calendar.DAY_OF_MONTH, 1)
@@ -491,9 +527,12 @@ class CalendarActivity : AppCompatActivity() {
             cell.root.isEnabled = day.inCurrentMonth
             cell.dayNumber.setTextColor(
                 getColor(
-                    when (weekdayColumn) {
-                        0 -> R.color.calendar_sunday_number
-                        6 -> R.color.calendar_saturday_number
+                    when {
+                        // Holiday tint wins over the plain weekend red/blue -- more specific,
+                        // more useful information for that one day.
+                        day.holidayName != null -> R.color.calendar_holiday_number
+                        weekdayColumn == 0 -> R.color.calendar_sunday_number
+                        weekdayColumn == 6 -> R.color.calendar_saturday_number
                         else -> R.color.on_surface
                     }
                 )
@@ -529,7 +568,10 @@ class CalendarActivity : AppCompatActivity() {
         // Pinned first, same convention as the main notes list (NoteRepository.observeAllPaged).
         val notesForDay = allReminders.filter { RecurrenceUtils.occursOn(it, dateMillis) }
             .sortedByDescending { it.pinned }
-        val dayLabel = SimpleDateFormat("EEE, MMMM d", Locale.getDefault()).format(java.util.Date(dateMillis))
+        val holidayName = if (CalendarPrefs.isHolidaysEnabled(this)) BrazilianHolidays.nameFor(dateMillis) else null
+        val dayLabel = SimpleDateFormat("EEE, MMMM d", Locale.getDefault()).format(java.util.Date(dateMillis)).let {
+            if (holidayName != null) "$it — $holidayName" else it
+        }
         val oneDayMillis = 24 * 60 * 60 * 1000L
 
         DayNotesDialog.show(
@@ -602,6 +644,10 @@ class CalendarActivity : AppCompatActivity() {
         private const val PREFS_NAME = "calendar_prefs"
         private const val KEY_BATTERY_PROMPT_SHOWN = "battery_prompt_shown"
         const val EXTRA_OPEN_TODAY = "open_today"
+        /** A specific start-of-day millis value to open straight to (see [openDayMillisFrom]) --
+         *  used by the home-screen widget's per-note taps, so each one lands on its own due day
+         *  instead of always today's. */
+        const val EXTRA_OPEN_DAY_MILLIS = "open_day_millis"
         private const val ACTION_NEW_TEXT_NOTE = "com.example.notepad.action.NEW_TEXT_NOTE"
         private const val ACTION_NEW_CHECKLIST_NOTE = "com.example.notepad.action.NEW_CHECKLIST_NOTE"
 

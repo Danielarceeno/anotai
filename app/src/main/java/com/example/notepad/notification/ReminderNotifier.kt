@@ -16,7 +16,6 @@ import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.data.RecurrenceUtils
 import com.example.notepad.ui.CalendarActivity
-import com.example.notepad.ui.NoteEditorActivity
 import java.util.Calendar
 
 enum class ReminderCheckResult { NOTHING_DUE, NOTIFIED, PERMISSION_DENIED }
@@ -84,20 +83,13 @@ object ReminderNotifier {
 
         val first = notes.first()
 
-        // A single note due: tapping the notification opens that exact note, not just the
-        // calendar overview -- there's nothing ambiguous to pick between. With more than one,
-        // there's no single note to deep-link to (a plain notification can't give each bundled
-        // note its own tap target), so it still falls back to today's day dialog, same as before.
-        val openIntent = if (notes.size == 1) {
-            Intent(context, NoteEditorActivity::class.java)
-                .putExtra(NoteEditorActivity.EXTRA_NOTE_ID, first.id)
-                .putExtra(NoteEditorActivity.EXTRA_NOTE_TYPE, first.type)
-                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        } else {
-            Intent(context, CalendarActivity::class.java)
-                .putExtra(CalendarActivity.EXTRA_OPEN_TODAY, true)
-                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
+        // Tapping the notification always opens today's day dialog (the same popup tapping
+        // today on the calendar grid shows), whether it's one note or several -- never straight
+        // into a note's own editor, so there's always a chance to see every task due today, mark
+        // one done, etc. without first having to back out of whichever note happened to be first.
+        val openIntent = Intent(context, CalendarActivity::class.java)
+            .putExtra(CalendarActivity.EXTRA_OPEN_TODAY, true)
+            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val contentIntent = PendingIntent.getActivity(
             context, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

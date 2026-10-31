@@ -1,7 +1,9 @@
 package com.example.notepad
 
+import androidx.core.app.NotificationManagerCompat
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.notepad.data.AppDatabase
+import com.example.notepad.notification.ReminderNotifier
 import com.example.notepad.security.LockState
 import com.example.notepad.security.SecurityPrefs
 import org.junit.rules.TestRule
@@ -16,6 +18,12 @@ object TestPrereqs {
         SecurityPrefs.clearPin(context)
         LockState.markUnlocked()
         AppDatabase.getInstance(context).clearAllTables()
+        // The reminder notification is real OS state, not reset by clearing this app's own DB/
+        // prefs above -- any test that inserts a note due today and resumes CalendarActivity
+        // (its onResume always runs an immediate reminder check) can post one for real, and it
+        // then outlives that test. Cancelling it here, for every test, keeps a notification
+        // posted by one test from tripping up a later one's "nothing showing yet" assumption.
+        NotificationManagerCompat.from(context).cancel(ReminderNotifier.NOTIFICATION_ID)
     }
 
     /** Same reset as [resetAppState], but as a [TestRule] so it can be chained to run *before* an

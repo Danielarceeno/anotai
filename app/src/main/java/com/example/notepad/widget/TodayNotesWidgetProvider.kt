@@ -138,11 +138,12 @@ class TodayNotesWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widgetEmptyView, openAppIntent)
             views.setOnClickPendingIntent(R.id.widgetAddButton, addPendingIntent)
 
-            // Items fill in their own note id/type on top of this template (see
-            // TodayNotesRemoteViewsFactory.getViewAt), since a ListView's rows
-            // can't each carry a fully distinct PendingIntent.
-            val itemTemplateIntent = Intent(context, NoteEditorActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            // Items fill in their own due day on top of this template (see
+            // TodayNotesRemoteViewsFactory.getViewAt), since a ListView's rows can't each carry a
+            // fully distinct PendingIntent. Opens that day's dialog -- the same popup tapping that
+            // day on the calendar grid shows -- rather than straight into the note's own editor.
+            val itemTemplateIntent = Intent(context, CalendarActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val itemTemplatePendingIntent = PendingIntent.getActivity(
                 context, 2, itemTemplateIntent,

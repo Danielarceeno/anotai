@@ -131,6 +131,8 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="settings_calendar_title">Calendar</string>
+    <string name="settings_holidays_title">Show Brazilian holidays</string>
+    <string name="settings_overdue_highlight_title">Highlight overdue tasks</string>
     <string name="settings_notifications_section_title">Notifications</string>
     <string name="settings_notifications_title">Reminder notifications</string>
     <string name="settings_organization_title">Organization</string>

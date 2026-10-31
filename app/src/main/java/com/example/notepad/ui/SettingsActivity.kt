@@ -51,6 +51,16 @@ class SettingsActivity : AppCompatActivity() {
             CalendarPrefs.setVerticalSwipeEnabled(this, isChecked)
         }
 
+        binding.holidaysSwitch.isChecked = CalendarPrefs.isHolidaysEnabled(this)
+        binding.holidaysSwitch.setOnCheckedChangeListener { _, isChecked ->
+            CalendarPrefs.setHolidaysEnabled(this, isChecked)
+        }
+
+        binding.overdueHighlightSwitch.isChecked = CalendarPrefs.isOverdueHighlightEnabled(this)
+        binding.overdueHighlightSwitch.setOnCheckedChangeListener { _, isChecked ->
+            CalendarPrefs.setOverdueHighlightEnabled(this, isChecked)
+        }
+
         binding.notificationsSwitch.isChecked = ReminderPrefs.isEnabled(this)
         binding.notificationsSwitch.setOnCheckedChangeListener { _, isChecked ->
             ReminderPrefs.setEnabled(this, isChecked)

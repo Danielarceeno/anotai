@@ -18,10 +18,16 @@ a home-screen widget, launcher shortcuts, and optional Google Drive backup.
 - **Search**: debounced, with the matched term highlighted in results.
 - **Calendar**: full-screen monthly grid, swipe or arrow-button navigation, a dot per note due
   that day, Saturday/Sunday day numbers *and* weekday-header letters tinted, tap a day to
-  see/add/complete notes due then.
+  see/add/complete notes due then. Optionally shows Brazilian national holidays (fixed dates
+  plus Easter-derived ones like Carnaval, computed per year, not hardcoded) tinted on the grid
+  and named in the day dialog -- opt-in from Settings, off by default.
+- **Overdue cue**: a task still not marked done after its day has passed shows its title in red
+  in the day dialog -- on by default, toggleable from Settings.
 - **Reminders**: due date + recurrence (none, daily, every weekday, weekly, bi-weekly, monthly,
   yearly, monthly on the same week-of-month + weekday e.g. "every 2nd Friday", or the first
-  business day of the month), with a daily 9am notification and snooze.
+  business day of the month), with a daily 9am notification and snooze. Tapping the notification
+  (or a task in the home-screen widget) opens that day's task list, the same popup tapping the
+  day on the calendar shows, rather than jumping straight into a single note's editor.
 - **Folders** and a **recoverable trash** (restore or permanently delete).
 - **Security**: optional PIN lock with biometric unlock as a shortcut on top of it.
 - **Home-screen widget**: today's notes (or the next 3/7 days, configurable), kept in sync
@@ -32,11 +38,6 @@ a home-screen widget, launcher shortcuts, and optional Google Drive backup.
   automatic background sync right after creating a note, plus a configurable periodic
   background sync, with conflict detection if another device wrote a newer backup since this
   one last synced.
-
-## Assets
-
-`imagens/logo.png` is the source image the launcher icon (`app/src/main/res/mipmap-*`) was
-generated from.
 
 ## Getting started
 
@@ -101,6 +102,7 @@ app/src/main/java/com/example/notepad/
 │   ├── NoteDao.kt, FolderDao.kt, AppDatabase.kt  Room DB and queries
 │   ├── NoteRepository.kt, FolderRepository.kt    thin repository layer over the DAOs
 │   ├── RecurrenceUtils.kt                        due-date/recurrence math
+│   ├── BrazilianHolidays.kt                      fixed + Easter-derived national holidays
 │   ├── BackupHelper.kt                           JSON (de)serialization shared by local
 │   │                                              export/import and Drive backup
 │   └── drive/

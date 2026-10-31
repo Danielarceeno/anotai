@@ -53,6 +53,13 @@
     <color name="calendar_sunday_number">#64B5F6</color>
     <!-- Light-blue outline around today's day number (see item_calendar_day.xml's todayIndicator). -->
     <color name="calendar_today_outline">#64B5F6</color>
+    <!-- Day-number tint marking a Brazilian national holiday (see BrazilianHolidays), distinct
+         from the weekend red/blue tints above. -->
+    <color name="calendar_holiday_number">#43A047</color>
+    <!-- Day-notes dialog: a task's title text, when it's still open after the day it was due on
+         has already passed (see DayNotesDialog's isOverdue). Same red as calendar_saturday_number
+         above, per user request, rather than its own separate shade. -->
+    <color name="task_overdue_text">#E57373</color>
 
     <!-- Home-screen "Today" widget: always dark, independent of system light/dark mode. -->
     <color name="widget_background">#1E1E1E</color>

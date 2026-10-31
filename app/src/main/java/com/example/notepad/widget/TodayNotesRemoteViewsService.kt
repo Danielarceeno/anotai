@@ -9,7 +9,7 @@ import com.example.notepad.data.AppDatabase
 import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.data.RecurrenceUtils
-import com.example.notepad.ui.NoteEditorActivity
+import com.example.notepad.ui.CalendarActivity
 import java.util.Calendar
 import kotlinx.coroutines.runBlocking
 
@@ -18,12 +18,17 @@ class TodayNotesRemoteViewsService : RemoteViewsService() {
         TodayNotesRemoteViewsFactory(applicationContext)
 }
 
-/** Builds the widget's note rows. RemoteViewsService re-creates this per bind, so it stays stateless aside from its own cached [notes]. */
+/** One row's note plus the specific day (within the widget's range) it's shown under -- tapping
+ *  it opens that day's dialog, so a note that recurs across more than one day in range still
+ *  opens on the particular occurrence this row actually represents. */
+private data class WidgetEntry(val note: Note, val dayStart: Long)
+
+/** Builds the widget's note rows. RemoteViewsService re-creates this per bind, so it stays stateless aside from its own cached [entries]. */
 private class TodayNotesRemoteViewsFactory(
     private val context: Context
 ) : RemoteViewsService.RemoteViewsFactory {
 
-    private var notes: List<Note> = emptyList()
+    private var entries: List<WidgetEntry> = emptyList()
 
     override fun onCreate() {}
 
@@ -47,24 +52,24 @@ private class TodayNotesRemoteViewsFactory(
 
         val allReminders = runBlocking { repository.getAllReminders() }
         val seenIds = mutableSetOf<Long>()
-        val result = mutableListOf<Note>()
+        val result = mutableListOf<WidgetEntry>()
         for (offset in 0 until rangeDays) {
             val dayStart = todayStart + offset * oneDayMillis
             allReminders
                 .filter { RecurrenceUtils.occursOn(it, dayStart) && !RecurrenceUtils.isCompletedOn(it, dayStart) }
-                .forEach { note -> if (seenIds.add(note.id)) result.add(note) }
+                .forEach { note -> if (seenIds.add(note.id)) result.add(WidgetEntry(note, dayStart)) }
         }
-        notes = result
+        entries = result
     }
 
     override fun onDestroy() {
-        notes = emptyList()
+        entries = emptyList()
     }
 
-    override fun getCount(): Int = notes.size
+    override fun getCount(): Int = entries.size
 
     override fun getViewAt(position: Int): RemoteViews {
-        val note = notes[position]
+        val (note, dayStart) = entries[position]
         val views = RemoteViews(context.packageName, R.layout.widget_today_notes_item)
 
         val label = note.title.ifBlank {
@@ -81,9 +86,10 @@ private class TodayNotesRemoteViewsFactory(
             context.getColor(com.example.notepad.ui.NoteColors.colorResFor(note.colorIndex))
         )
 
+        // Opens that day's dialog (same as tapping it on the calendar grid), not straight into
+        // the note's own editor -- see TodayNotesWidgetProvider.buildFullViews' item template.
         val fillInIntent = Intent().apply {
-            putExtra(NoteEditorActivity.EXTRA_NOTE_ID, note.id)
-            putExtra(NoteEditorActivity.EXTRA_NOTE_TYPE, note.type)
+            putExtra(CalendarActivity.EXTRA_OPEN_DAY_MILLIS, dayStart)
         }
         views.setOnClickFillInIntent(R.id.itemRoot, fillInIntent)
 
@@ -92,6 +98,6 @@ private class TodayNotesRemoteViewsFactory(
 
     override fun getLoadingView(): RemoteViews? = null
     override fun getViewTypeCount(): Int = 1
-    override fun getItemId(position: Int): Long = notes[position].id
+    override fun getItemId(position: Int): Long = entries[position].note.id
     override fun hasStableIds(): Boolean = true
 }

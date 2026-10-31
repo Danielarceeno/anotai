@@ -14,6 +14,7 @@ import com.example.notepad.data.ChecklistItem
 import com.example.notepad.data.Note
 import com.example.notepad.data.RecurrenceUtils
 import com.example.notepad.databinding.DialogDayNotesBinding
+import java.util.Calendar
 
 /**
  * Tapping a calendar day shows this: the notes already due that day (reference
@@ -23,6 +24,27 @@ import com.example.notepad.databinding.DialogDayNotesBinding
  * reminder, remove), mirroring the reference app's long-press context menu.
  */
 object DayNotesDialog {
+
+    /** True once [dayMillis] (the day this row is shown under) is strictly in the past and
+     *  still isn't marked done -- the user-requested cue for "this didn't get done": just the
+     *  task's own title text turns red here, rather than tinting the calendar grid cell itself.
+     *  Gated behind [CalendarPrefs.isOverdueHighlightEnabled] (on by default, see Settings). */
+    private fun isOverdue(context: Context, dayMillis: Long, isDoneToday: Boolean): Boolean {
+        if (!CalendarPrefs.isOverdueHighlightEnabled(context)) return false
+        val todayStart = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        return dayMillis < todayStart && !isDoneToday
+    }
+
+    /** Colors [title] red per [isOverdue], or back to [defaultColor] -- called both when a row
+     *  is first built and again from the "done" checkbox's listener, so checking a task off
+     *  clears the red immediately instead of only on the next time this dialog is opened. */
+    private fun applyOverdueColor(title: TextView, defaultColor: Int, dayMillis: Long, isDoneToday: Boolean) {
+        title.setTextColor(
+            if (isOverdue(title.context, dayMillis, isDoneToday)) title.context.getColor(R.color.task_overdue_text) else defaultColor
+        )
+    }
 
     fun show(
         context: Context,
@@ -102,6 +124,11 @@ object DayNotesDialog {
                 setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
                 applyCompletedStyle(this, isDoneToday)
             }
+            // Captured once the theme's default color is actually applied above (setTextAppearance
+            // resets the color too, so this must come after it), so the "done" checkbox listener
+            // below can switch back to it once the overdue red no longer applies.
+            val defaultTitleColor = title.currentTextColor
+            applyOverdueColor(title, defaultTitleColor, dayMillis, isDoneToday)
 
             // A plain round toggle (filled = pending, hollow = done) instead of the default
             // square CheckBox widget, matching the reference screenshots' lime-green circles.
@@ -115,6 +142,7 @@ object DayNotesDialog {
                 setOnCheckedChangeListener { button, isChecked ->
                     button.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
                     applyCompletedStyle(title, isChecked)
+                    applyOverdueColor(title, defaultTitleColor, dayMillis, isChecked)
                     onToggleComplete(note, isChecked)
                 }
             }

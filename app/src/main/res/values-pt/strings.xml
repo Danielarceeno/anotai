@@ -131,6 +131,8 @@
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Escuro</string>
     <string name="settings_calendar_title">Calendário</string>
+    <string name="settings_holidays_title">Mostrar feriados nacionais</string>
+    <string name="settings_overdue_highlight_title">Destacar tarefas atrasadas</string>
     <string name="settings_notifications_section_title">Notificações</string>
     <string name="settings_notifications_title">Notificações de lembrete</string>
     <string name="settings_organization_title">Organização</string>
