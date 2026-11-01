@@ -34,6 +34,12 @@ library).
 | `data/BrazilianHolidaysTest` | Fixed and Easter-derived (Carnaval, Sexta-feira Santa, Corpus Christi) holidays against the real public calendar for two different years; per-year memoization doesn't leak a stale date across years |
 | `ui/NotesSortPrefsTest` | Each sort mode's ordering, pinned-always-first |
 | `security/PasswordHasherTest` | PBKDF2 hashing (shared by the app PIN and per-note passwords) is deterministic for the same secret+salt, rejects a wrong secret, and hex round-trips |
+| **`data/RecurrenceUtilsEdgeCasesTest`** | Leap years (Feb 29), day-31 monthly anchors in short months, a 5th-weekday-of-month anchor skipping a 4-occurrence month, the year boundary, three timezones, Auckland's DST spring-forward transition, and the (documented, not fixed) first-business-day-doesn't-know-about-holidays limitation |
+| **`data/RecurrenceUtilsPropertyTest`** *(Kotest property)* | Daily/weekly/biweekly/every-weekday invariants against many randomized day offsets; no mode ever occurs before its own due date |
+| **`data/BrazilianHolidaysMultiYearTest`** | 2024 (leap, Easter in March), 2027 (non-leap, Easter in March), 2028 (leap, Easter in April) -- against each year's real public Easter date, with the dependent moveable holidays computed in-test via `Calendar.add`, not hand-worked-out |
+| **`data/drive/MergeByUuidPropertyTest`** *(Kotest property)* | Idempotency, never duplicates a uuid, never loses a note present on either side (unless tombstoned), newer-copy-always-wins, and the tombstone-vs-later-edit interaction -- against many randomized local/remote/tombstone combinations |
+| **`data/EscapeLikePatternEdgeCasesTest`** | Quotes/emoji/accented characters pass through unescaped; 1-2 character terms unchanged; a lone wildcard still escaped; a very long string escaped in full |
+| **`data/ChecklistItemEdgeCasesTest`** | Leading/trailing/consecutive blank lines, whitespace-only lines, a line with no recognized prefix (fallback to plain unchecked), mixed prefixed/unprefixed lines, full serialize-then-parse round trip |
 
 ## Instrumented tests (`app/src/androidTest/`)
 
@@ -53,6 +59,7 @@ library).
 | `SettingsThemeTest` | Picking a theme updates the Settings row and `ThemePrefs` |
 | `SearchShowsAllNotesTest` | A blank query browses every note instead of showing nothing |
 | `SearchFtsSubstringMatchTest` | Mid-word substring matches still work on the FTS5 index (not just whole-token matches) |
+| **`SearchFtsEdgeCasesTest`** | Emoji/accented titles are searchable; unaccented query doesn't match an accented title; 1-2 character queries (below the trigram minimum) still return correct results; ASCII case-folding works but accented-letter case-folding doesn't (documented SQLite limitation, not a bug); a very long query doesn't crash |
 | `NoteRepositoryTombstoneSyncTest` | A tombstone synced in from another device's Drive backup actually trashes a still-active local note, against a real Room DB |
 | `BackupJsonRoundTripTest` | Plain JSON export/import and the Drive tombstone-carrying format both round-trip, including a legacy (pre-tombstone) backup file |
 | `DriveSyncActivityTest` | Signed-out state renders without crashing |
@@ -116,6 +123,47 @@ alongside a behavior fix:
 - **`ShareImageHelper.renderToBitmap`/`saveToCache`** -- `private` to `@VisibleForTesting`, no
   behavior change, so `ShareImageHelperTest` can exercise them without going through `share()`'s
   real system share-sheet Intent (which Espresso has no way to dismiss).
+
+### Fase 2 tooling evaluation: Robolectric, MockK, kotlinx-coroutines-test, Turbine, Kotest
+
+Per the Fase 2 mission's own instruction to evaluate before adding anything:
+
+- **Robolectric: not added.** `AppDatabase` encrypts at rest with SQLCipher, which loads a native
+  library (`SQLiteDatabase.loadLibs()`) -- that doesn't run under Robolectric's JVM shadow
+  framework without custom shadows nobody's written for it. Since almost every `Activity` worth
+  testing touches Room (directly or via `NoteRepository`), the actual gain would be limited to
+  tests that don't need a database at all -- and those are already writable as plain instrumented
+  tests (or, where Context isn't even needed, plain JUnit) without taking on a second "shadow
+  Android" execution model to maintain alongside the real one.
+- **MockK: not added.** Every fake needed so far (`DriveBackupHelper.DriveRemoteStore`) was a
+  small, hand-written interface + implementation -- no real need for a mocking library yet, and
+  introducing one only for a single interface isn't worth the added dependency.
+- **kotlinx-coroutines-test / Turbine: not added.** No current test target is both suspend/Flow-
+  based *and* independent of Room (which would hit the same SQLCipher problem as Robolectric
+  above) -- `RecurrenceUtils`/`BrazilianHolidays`/`mergeByUuid`/`escapeLikePattern`/`ChecklistItem`
+  are all plain synchronous functions.
+- **Kotest (`kotest-property-jvm` only): added.** Pure JVM, no Android/SQLCipher conflict, and a
+  genuine fit for `RecurrenceUtils.occursOn` and `DriveBackupHelper.mergeByUuid` -- both pure
+  functions with real invariants (e.g. "weekly occurs iff the day offset is a multiple of 7",
+  "the result never has two notes with the same uuid") worth checking against many randomized
+  inputs instead of only hand-picked examples. Scoped to exactly those two files' tests, not
+  adopted project-wide.
+
+### A real bug found during Fase 2: `RecurrenceUtils.daysBetween()` and DST
+
+While writing `RecurrenceUtilsEdgeCasesTest`'s timezone/DST cases: `daysBetween()` (backing
+`REPEAT_WEEKLY`/`REPEAT_BIWEEKLY`) claimed to be "DST-safe (diffed at local noon)", but adding the
+same fixed 12h offset to both sides of a subtraction is an algebraic no-op -- `(b+c)-(a+c)` always
+equals `b-a`. When the anchor date is before a "spring forward" DST transition and the checked
+date is after it, the real UTC-millisecond distance between their two local midnights is exactly
+one hour short of a clean N×24h, so the old millis-based division truncated down and undercounted
+by a day -- permanently, for every check past that transition, in any device timezone that
+observes DST (not Brazil's own default; Brazil abolished DST in 2019). **Fixed** by diffing real
+`java.time.LocalDate` values (`ChronoUnit.DAYS.between`) instead, which compare calendar dates
+directly with no UTC-offset arithmetic to get wrong -- needed core library desugaring, since
+`java.time` is only built into the platform from API 26 and `minSdk` here is 24. Confirmed as a
+real regression test (reverting the fix made `RecurrenceUtilsEdgeCasesTest`'s DST case fail,
+restoring it made it pass again).
 
 ## CI: why `instrumented-tests` was failing (resolved)
 

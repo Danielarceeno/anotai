@@ -6,6 +6,50 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 9 — Test strategy overhaul, Phase 2: the unit-logic layer (2026-11-01)
+
+Continuation of Session 8's mission, moving from Phase 1 (instrumented coverage gaps) to Phase 2
+(stronger pure-logic unit tests): `RecurrenceUtils`, `BrazilianHolidays`, `mergeByUuid`,
+`escapeLikePattern`/FTS search, `ChecklistItem`.
+
+**Tooling decision** (full reasoning in `TESTING.md`): evaluated Robolectric, MockK,
+kotlinx-coroutines-test, and Turbine before adding anything, per the mission's own instruction.
+Added only `kotest-property-jvm`, scoped to `RecurrenceUtils`/`mergeByUuid`'s property tests.
+Skipped the rest -- Robolectric specifically because `AppDatabase`'s SQLCipher native library
+doesn't run under its JVM shadow framework, which would have left almost every Activity test
+(anything touching Room) still needing a real device/emulator anyway.
+
+**A real bug found and fixed**: `RecurrenceUtils.daysBetween()` (backing `REPEAT_WEEKLY`/
+`REPEAT_BIWEEKLY`) silently lost a day's count across a DST "spring forward" transition --
+its own comment claimed to be DST-safe via a "diffed at local noon" adjustment that was actually
+a mathematical no-op (adding the same constant to both sides of a subtraction changes nothing).
+Any weekly/biweekly reminder would silently skip one occurrence right after the first DST
+transition following its due date, permanently, in any device timezone that observes DST (not
+Brazil's own default). Fixed by diffing real `java.time.LocalDate` values instead of raw millis,
+which needed core library desugaring added (`minSdk` 24, `java.time` only native from API 26).
+Confirmed as a genuine regression test: reverting the fix made the new DST test fail, restoring
+it made it pass again -- full detail and the repro in `TESTING.md`.
+
+**What got added**: edge-case and property-based tests for all five Phase 2 target areas --
+leap years / short months / a 5th-weekday-of-month anchor / the year boundary / three timezones
+/ Auckland's real 2026 DST transition for `RecurrenceUtils`; three more years (leap, Easter in
+March and April) against real public Easter dates for `BrazilianHolidays`; idempotency / never-
+duplicates-a-uuid / never-loses-a-newer-note / tombstone-vs-edit as Kotest properties for
+`mergeByUuid`; quotes/emoji/accents/short-terms/long-strings for `escapeLikePattern` and the real
+FTS5 index; blank-line/no-prefix/round-trip edge cases for `ChecklistItem`. Full file list in
+`TESTING.md`'s unit/instrumented tables.
+
+**A second real-world limitation found, documented rather than "fixed"**: SQLite's default `LIKE`
+case-folding is ASCII-only -- searching `"AÇÚCAR"` (uppercased, accented) doesn't match a title
+spelled `"Açúcar"`, even though the all-lowercase, correctly-accented query does. Not a bug in
+this app's own code (no ICU extension is loaded); pinned as a test documenting current behavior
+rather than silently assumed to work, so a future change to the search collation is a deliberate
+one, not an accidental regression nobody notices.
+
+**Suite**: 86 unit (`testDebugUnitTest`) + 103 instrumented (`connectedDebugAndroidTest`), both
+green at the end -- one unrelated, pre-existing flake in `SelectAllNotesTest` (not touched this
+session) during a full-suite run, confirmed passing again in isolation.
+
 ## Session 8 — Test strategy overhaul, Phase 1: closing TESTING.md's "Known gaps" (2026-11-01)
 
 Also includes an earlier, separate batch of feature work this session that got committed first,
