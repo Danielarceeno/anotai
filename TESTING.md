@@ -95,6 +95,25 @@ library).
 
 ### Known gaps (not covered, and why)
 
+- **No PIN attempt throttling.** `LockActivity`/`SecurityPrefs.checkPin` have no rate-limit or
+  backoff on repeated wrong guesses -- the Fase 6 mission explicitly anticipated this might not
+  exist and asked only to register it as a finding, not implement it unasked (a new feature, not
+  a bug fix). A 4-6 digit PIN has only 10k-1M possibilities; PBKDF2's cost only slows an *offline*
+  attack against an extracted hash (see `SecurityPrefs`'s own comment) and does nothing against
+  repeated guesses through the UI itself.
+- **No static-analysis/dependency tooling configured yet** (Lint `warningsAsErrors` for security
+  categories, detekt/ktlint, OWASP Dependency-Check, gitleaks). Setting these up properly --
+  picking rulesets that don't drown real findings in noise -- is its own piece of work, not a
+  quick addition alongside the rest of Fase 6; deferred to a dedicated pass.
+- **No release-build (R8-minified) instrumented smoke test yet.** Would catch shrink-related
+  breaks in JSON serialization/Room/SQLCipher/reflection that a debug-build test run can't.
+  Deferred alongside the tooling above.
+- **`allowBackup="true"` with no explicit `dataExtractionRules`/`fullBackupContent`.** Reviewed,
+  not changed: the only genuinely sensitive material is either the SQLCipher-encrypted DB itself
+  (harmless as an opaque blob backed up to the cloud -- its passphrase lives in Android Keystore,
+  which the OS already excludes from Auto Backup on its own) or a PBKDF2 hash+salt (`SecurityPrefs`
+  PIN), never a reversible plaintext secret. Explicit exclusion rules would be better defense-in-
+  depth than relying on that implicit Keystore behavior, but aren't fixing an active leak.
 - **Plaintext-to-SQLCipher migration** (`AppDatabase.migratePlaintextDatabaseIfNeeded`) -- testing
   it safely would need resetting `AppDatabase`'s own static singleton instance mid-process, which
   every *other* test in the same instrumentation run also depends on. Deferred rather than risk
