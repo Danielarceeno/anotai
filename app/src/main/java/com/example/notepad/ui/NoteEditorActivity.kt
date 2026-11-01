@@ -756,6 +756,12 @@ class NoteEditorActivity : AppCompatActivity() {
         saveInFlight = true
         NotepadApplication.applicationScope.launch {
             try {
+                // Testability seam (no-op/null outside tests): lets a test force a window where
+                // this Activity gets fully destroyed while this coroutine is still in flight, to
+                // prove the save still lands exactly once regardless -- this coroutine runs on
+                // NotepadApplication.applicationScope, not this Activity's own lifecycleScope,
+                // specifically so Activity destruction can't cancel it mid-write.
+                saveRaceHookForTesting?.invoke()
                 val saved: Note
                 if (existing != null) {
                     saved = existing.copy(
@@ -897,5 +903,10 @@ class NoteEditorActivity : AppCompatActivity() {
          *  have Espresso automatically wait for an in-flight unlock instead of polling/sleeping
          *  for however long PBKDF2 happens to take on that device. */
         val unlockIdlingResource = CountingIdlingResource("NoteEditorActivity.unlockNote")
+
+        /** Testability seam for [saveIfNeeded]'s background save coroutine -- see its own call
+         *  site's doc. Null (a no-op) in production; only a test sets it. */
+        @androidx.annotation.VisibleForTesting
+        var saveRaceHookForTesting: (suspend () -> Unit)? = null
     }
 }
