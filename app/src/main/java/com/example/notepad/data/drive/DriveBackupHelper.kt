@@ -193,6 +193,25 @@ object DriveBackupHelper {
 
     data class SyncResult(val notes: List<Note>, val addedCount: Int, val hadRemoteBackup: Boolean)
 
+    /** The remote half of a sync, abstracted out of [syncNow] so [DriveBackupHelperSyncRaceTest]
+     *  can race two [syncNow] calls against a fake, in-memory remote instead of a real Drive
+     *  account -- the [Mutex] guarantee being tested is about this app's own two callers
+     *  overlapping, not about Drive itself. [RealDriveRemoteStore] (the production default) is
+     *  just [restore]/[backup] with the `context`/`account` already bound. */
+    interface DriveRemoteStore {
+        suspend fun restore(): BackupHelper.BackupData?
+        suspend fun backup(notes: List<Note>, tombstones: Map<String, Long>)
+    }
+
+    private class RealDriveRemoteStore(
+        private val context: Context,
+        private val account: GoogleSignInAccount
+    ) : DriveRemoteStore {
+        override suspend fun restore() = DriveBackupHelper.restore(context, account)
+        override suspend fun backup(notes: List<Note>, tombstones: Map<String, Long>) =
+            DriveBackupHelper.backup(context, account, notes, tombstones)
+    }
+
     /**
      * The one place every Drive sync path goes through: the manual "Sync"/"Restore" buttons in
      * [com.example.notepad.ui.DriveSyncActivity], the first-sign-in backup, and
@@ -207,11 +226,23 @@ object DriveBackupHelper {
      * two local rows, same uuid, genuinely duplicated. [mergeByUuid]'s own `distinctBy` only
      * guards against a single read seeing a duplicate *within* one remote file; it can't do
      * anything about two overlapping reads/writes racing each other.
+     *
+     * [account] is nullable only so a test can override [remoteStore] without needing a real
+     * signed-in account at all; every production call site always has one (it's only ever
+     * absent here because [RealDriveRemoteStore]'s default construction is never evaluated once
+     * [remoteStore] is supplied explicitly).
      */
-    suspend fun syncNow(context: Context, repository: NoteRepository, account: GoogleSignInAccount): SyncResult =
+    suspend fun syncNow(
+        context: Context,
+        repository: NoteRepository,
+        account: GoogleSignInAccount? = null,
+        remoteStore: DriveRemoteStore = RealDriveRemoteStore(context, requireNotNull(account) {
+            "account is required unless remoteStore is overridden"
+        })
+    ): SyncResult =
         syncMutex.withLock {
             val local = repository.getAllForExport()
-            val remoteData = restore(context, account)
+            val remoteData = remoteStore.restore()
             val merged = if (remoteData != null) {
                 val tombstones = repository.mergeTombstones(remoteData.tombstones)
                 val result = mergeByUuid(local, remoteData.notes, tombstones)
@@ -220,7 +251,7 @@ object DriveBackupHelper {
             } else {
                 local
             }
-            backup(context, account, merged, repository.getTombstones())
+            remoteStore.backup(merged, repository.getTombstones())
             SyncResult(merged, merged.size - local.size, hadRemoteBackup = remoteData != null)
         }
 
