@@ -76,11 +76,18 @@ object RecurrenceUtils {
         return null
     }
 
-    /** Whole-day difference between two start-of-day millis values, DST-safe (diffed at local noon). */
+    /** Whole *calendar-day* difference between two start-of-day millis values -- via
+     *  [java.time.LocalDate], not raw millis division, so it's actually correct across a DST
+     *  transition. A millis-based diff (even one that first shifts both sides by the same fixed
+     *  offset, which cancels out in the subtraction and fixes nothing) silently undercounts by a
+     *  day once a "spring forward" transition falls between the two dates, since the real elapsed
+     *  time is an hour short of N*24h -- regression test: `daysBetween` in
+     *  `RecurrenceUtilsEdgeCasesTest`. */
     private fun daysBetween(fromStartOfDay: Long, toStartOfDay: Long): Long {
-        val noon = 12 * 60 * 60 * 1000L
-        val dayMs = 24 * 60 * 60 * 1000L
-        return ((toStartOfDay + noon) - (fromStartOfDay + noon)) / dayMs
+        val zone = java.time.ZoneId.systemDefault()
+        val fromDate = java.time.Instant.ofEpochMilli(fromStartOfDay).atZone(zone).toLocalDate()
+        val toDate = java.time.Instant.ofEpochMilli(toStartOfDay).atZone(zone).toLocalDate()
+        return java.time.temporal.ChronoUnit.DAYS.between(fromDate, toDate)
     }
 
     /** Whether [note] is marked done specifically on [dayStart] (not just done "at some point"). */

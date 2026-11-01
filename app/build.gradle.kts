@@ -52,6 +52,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Lets RecurrenceUtils use java.time (LocalDate/ChronoUnit) for a genuinely DST-safe
+        // calendar-day diff, back to minSdk 24 -- java.time itself is only built into the
+        // platform from API 26.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -98,6 +102,8 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
 
     // Tiny, dependency-free artifact (no Android framework or test-runner code) meant exactly
     // for being referenced from production code: lets NoteEditorActivity's own
