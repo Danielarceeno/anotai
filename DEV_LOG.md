@@ -6,6 +6,93 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 13 — Test strategy overhaul, Phase 6: app-wide PIN lock bypass (2026-11-01)
+
+Started Fase 6 (security review) with the manifest: every `exported` component, `allowBackup`,
+PIN storage, and SQLCipher. Found a real, significant bug while reviewing the PIN lock itself.
+
+### Bug found and fixed this session
+**The app's PIN lock was only ever checked in `CalendarActivity.onCreate`/`onResume`.** Every
+other screen (`NoteEditorActivity`, `TrashActivity`, `FoldersActivity`, `SettingsActivity`,
+`DriveSyncActivity`, `SearchActivity`, `PickedNoteWidgetConfigActivity`) trusted that the user
+could only have reached it by passing through the calendar's lock gate first. Two concrete holes
+in that assumption:
+
+1. **Auto-lock did nothing outside the calendar screen.** Sitting in any other screen while the
+   configured auto-lock window elapsed never re-prompted for the PIN on returning to it -- only
+   `CalendarActivity.onResume` checked `LockState.isLocked`, and coming back to a *different*
+   screen (the app was merely backgrounded, not closed, so the Activity instance survives and
+   gets `onResume`, not a fresh `onCreate`) never passes through there at all.
+2. **`SearchActivity` -- `exported="true"`, required so the system search box can reach it --
+   had no check whatsoever.** Any other app on the device could launch it directly via a plain
+   explicit `Intent` (no permission required for an exported Activity) and see the full notes
+   list -- titles and body previews, respecting only per-note passwords, never the app PIN. A
+   complete bypass of the lock from entirely outside this app. `PickedNoteWidgetConfigActivity`
+   (also exported, for the widget host) had the identical exposure for the same reason.
+
+Reported to the user before fixing, per this mission's own rule; fix authorized, proceeded with a
+regression test proving red-before/green-after.
+
+**Fix**: a new shared base class, `LockGuardedActivity`, with one protected helper
+(`redirectToLockScreenIfLocked()`) that every affected Activity now calls as the very first thing
+in both `onCreate` (right after `super.onCreate`) and `onResume`. `CalendarActivity` itself was
+left untouched -- it already had its own, slightly different version of this same check (carrying
+a pending launcher-shortcut action through the lock screen, which none of the others need) and is
+already covered by its own tests.
+
+`LockGuardedActivityTest` proves both holes: launching `SearchActivity` directly while locked now
+opens `LockActivity` instead of showing notes; an already-open `NoteEditorActivity` now locks on
+the next `onResume` once the auto-lock window elapses, not only on a fresh launch. Verified:
+reverting the fix turned both cases red with exactly the expected failure message; restoring it
+turned both green again.
+
+One test-isolation bug surfaced by the new test itself (not a production bug): the test sets
+`SecurityPrefs.setAutoLockMinutes(context, 0)` to make `LockState.isLocked()` deterministically
+true without `Thread.sleep`, but nothing reset it afterward -- it leaked into every later test in
+the same instrumentation run that sets a PIN, sending them to the lock screen instead of whatever
+they were actually testing (8 unrelated tests failed on the first full-suite run because of this).
+Fixed in the test's own `@After` *and* in `TestPrereqs.resetAppState()` (shared by nearly every
+instrumented test), since `autoLockMinutes` was never part of that reset before and any future
+test touching it would have hit the same leak.
+
+Full suite green after both fixes (131 tests).
+
+---
+
+## Session 12 — Test strategy overhaul, Phase 5: backup, Drive and sync (2026-11-01)
+
+Covered the Fase 5 mission items against `DriveBackupHelper`/`DriveBackupWorker`:
+
+- `DriveSyncNowIntegrationTest` (new): `syncNow` end-to-end against a real Room database, using
+  the same `DriveRemoteStore` fake pattern `DriveBackupHelperSyncRaceTest` already established --
+  first sync, idempotent resync, a newer remote copy actually landing as a local update, a
+  cross-device tombstone actually trashing a local row, and a remote-side failure propagating
+  instead of silently losing local data. `mergeByUuid`'s own pure-function logic was already
+  thoroughly unit-tested (`DriveBackupHelperTest`); this is the integration layer on top of it.
+- `DriveBackupWorkerTest` (new) + a small testability seam, `DriveBackupWorker
+  .syncHookForTesting` (nullable suspend hook, null outside tests): lets the test force the
+  sync-succeeds and sync-throws-so-retry `Result` branches without a real signed-in Drive account,
+  which an instrumented test has no way to provide. The "nobody signed in" branch needed no seam
+  at all -- the test device genuinely isn't signed in.
+- `DriveBackupScheduleTest` (new): `schedulePeriodicBackup`/`triggerImmediateBackup` actually
+  enqueue what they document, via `WorkManagerTestInitHelper`'s test-mode `WorkManager` (added
+  `androidx.work:work-testing` as an `androidTestImplementation` dependency).
+- `BackupJsonRoundTripTest` extended: empty input, a 500k-char note body, emoji/accented text, and
+  an unknown future-version JSON field being ignored rather than breaking the parse.
+
+No bugs found this phase -- `syncNow`'s existing Mutex/merge/tombstone/error-propagation behavior
+held up under all of the above. Left out, per the mission's own scoping: a real-Drive-account
+manual test roadmap (belongs in `docs/MANUAL_TEST_CHECKLIST.md`, not CI) -- deferred to Fase 10's
+documentation pass rather than writing it in isolation now.
+
+Also recovered from an emulator/package-manager corruption mid-run (`cmd: Can't find service:
+package`, same failure mode as prior sessions) after an unrelated test
+(`SettingsSetPinDialogTest`) triggered an `INSTRUMENTATION_ABORTED: System has crashed` --
+full `qemu-system`/`emulator` kill, `adb kill-server`/`start-server`, fresh relaunch, re-disable
+animations. Full suite green after recovery (129 tests, 0 failures).
+
+---
+
 ## Session 11 — Test strategy overhaul, Phase 4: editor rotation bug (2026-11-01)
 
 Started Fase 4 (the editor/security-critical flows) by writing `NoteEditorRotationTest` to check
@@ -61,40 +148,6 @@ character committed, truncating a checklist item (split into two separate `perfo
 matching the pattern `ChecklistAddRowTest`/`CreateEditNoteFlowTest` already use).
 
 Full suite (unit + instrumented) green after the fix.
-
----
-
-## Session 12 — Test strategy overhaul, Phase 5: backup, Drive and sync (2026-11-01)
-
-Covered the Fase 5 mission items against `DriveBackupHelper`/`DriveBackupWorker`:
-
-- `DriveSyncNowIntegrationTest` (new): `syncNow` end-to-end against a real Room database, using
-  the same `DriveRemoteStore` fake pattern `DriveBackupHelperSyncRaceTest` already established --
-  first sync, idempotent resync, a newer remote copy actually landing as a local update, a
-  cross-device tombstone actually trashing a local row, and a remote-side failure propagating
-  instead of silently losing local data. `mergeByUuid`'s own pure-function logic was already
-  thoroughly unit-tested (`DriveBackupHelperTest`); this is the integration layer on top of it.
-- `DriveBackupWorkerTest` (new) + a small testability seam, `DriveBackupWorker
-  .syncHookForTesting` (nullable suspend hook, null outside tests): lets the test force the
-  sync-succeeds and sync-throws-so-retry `Result` branches without a real signed-in Drive account,
-  which an instrumented test has no way to provide. The "nobody signed in" branch needed no seam
-  at all -- the test device genuinely isn't signed in.
-- `DriveBackupScheduleTest` (new): `schedulePeriodicBackup`/`triggerImmediateBackup` actually
-  enqueue what they document, via `WorkManagerTestInitHelper`'s test-mode `WorkManager` (added
-  `androidx.work:work-testing` as an `androidTestImplementation` dependency).
-- `BackupJsonRoundTripTest` extended: empty input, a 500k-char note body, emoji/accented text, and
-  an unknown future-version JSON field being ignored rather than breaking the parse.
-
-No bugs found this phase -- `syncNow`'s existing Mutex/merge/tombstone/error-propagation behavior
-held up under all of the above. Left out, per the mission's own scoping: a real-Drive-account
-manual test roadmap (belongs in `docs/MANUAL_TEST_CHECKLIST.md`, not CI) -- deferred to Fase 10's
-documentation pass rather than writing it in isolation now.
-
-Also recovered from an emulator/package-manager corruption mid-run (`cmd: Can't find service:
-package`, same failure mode as prior sessions) after an unrelated test
-(`SettingsSetPinDialogTest`) triggered an `INSTRUMENTATION_ABORTED: System has crashed` --
-full `qemu-system`/`emulator` kill, `adb kill-server`/`start-server`, fresh relaunch, re-disable
-animations. Full suite green after recovery (129 tests, 0 failures).
 
 ---
 

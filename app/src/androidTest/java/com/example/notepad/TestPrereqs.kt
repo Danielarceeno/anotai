@@ -16,6 +16,11 @@ object TestPrereqs {
     fun resetAppState() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         SecurityPrefs.clearPin(context)
+        // Not implied by clearPin: a test that changes this (e.g. to make LockState.isLocked()
+        // deterministic without Thread.sleep) would otherwise leak a non-default value into every
+        // later test in the same instrumentation run that sets a PIN, sending them to the lock
+        // screen instead of whatever they were actually testing.
+        SecurityPrefs.setAutoLockMinutes(context, SecurityPrefs.DEFAULT_AUTO_LOCK_MINUTES)
         LockState.markUnlocked()
         AppDatabase.getInstance(context).clearAllTables()
         // The reminder notification is real OS state, not reset by clearing this app's own DB/

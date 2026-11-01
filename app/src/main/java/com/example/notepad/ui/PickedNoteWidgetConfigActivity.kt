@@ -5,7 +5,6 @@ import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.notepad.data.AppDatabase
 import com.example.notepad.data.NoteRepository
@@ -21,13 +20,19 @@ import com.example.notepad.widget.PickedNoteWidgetProvider
  * contract for widget configuration activities: if the user backs out without choosing a note,
  * the host drops the not-yet-placed widget instead of leaving it stuck unconfigured.
  */
-class PickedNoteWidgetConfigActivity : AppCompatActivity() {
+class PickedNoteWidgetConfigActivity : LockGuardedActivity() {
 
     private lateinit var binding: ActivityPickedNoteWidgetConfigBinding
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Exported (the widget host needs to reach it) -- same reasoning as SearchActivity: this
+        // shows a list of notes to pick from, so it needs the same guard. Returning before
+        // setResult() is fine: finish() without one already defaults to RESULT_CANCELED, the
+        // same outcome the platform's widget-configuration contract expects for "user didn't
+        // finish configuring it".
+        if (redirectToLockScreenIfLocked()) return
         binding = ActivityPickedNoteWidgetConfigBinding.inflate(layoutInflater)
         setContentView(binding.root)
 

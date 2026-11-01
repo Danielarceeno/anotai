@@ -7,7 +7,6 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
@@ -25,7 +24,7 @@ import kotlinx.coroutines.launch
  * else (restore/backup frequency/sign out) tucked into the overflow menu. [SettingsActivity]'s
  * own Drive row now just opens this instead of a popup menu.
  */
-class DriveSyncActivity : AppCompatActivity() {
+class DriveSyncActivity : LockGuardedActivity() {
 
     private lateinit var binding: ActivityDriveSyncBinding
     private lateinit var repository: NoteRepository
@@ -37,6 +36,7 @@ class DriveSyncActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectToLockScreenIfLocked()) return
         binding = ActivityDriveSyncBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -65,6 +65,7 @@ class DriveSyncActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (redirectToLockScreenIfLocked()) return
         // Reflects a sync that just finished in the background (periodic worker, or the
         // immediate one triggered by creating a note) without needing to tap the button again.
         updateUi()

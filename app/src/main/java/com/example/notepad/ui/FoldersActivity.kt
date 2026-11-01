@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.notepad.R
@@ -16,7 +15,7 @@ import com.example.notepad.databinding.DialogTextInputBinding
 import kotlinx.coroutines.launch
 
 /** Create/rename/delete folders, and tap one to see the notes filed under it. */
-class FoldersActivity : AppCompatActivity() {
+class FoldersActivity : LockGuardedActivity() {
 
     private lateinit var binding: ActivityFoldersBinding
     private lateinit var repository: FolderRepository
@@ -24,6 +23,7 @@ class FoldersActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectToLockScreenIfLocked()) return
         binding = ActivityFoldersBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -97,5 +97,10 @@ class FoldersActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.reminder_cancel, null)
             .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        redirectToLockScreenIfLocked()
     }
 }

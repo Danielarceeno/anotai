@@ -10,7 +10,6 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.lifecycle.lifecycleScope
@@ -44,7 +43,7 @@ import kotlinx.coroutines.withContext
  * is written as soon as there's a title or body and discarded if both
  * stay empty.
  */
-class NoteEditorActivity : AppCompatActivity() {
+class NoteEditorActivity : LockGuardedActivity() {
 
     private lateinit var binding: ActivityNoteEditorBinding
     private lateinit var repository: NoteRepository
@@ -126,6 +125,7 @@ class NoteEditorActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectToLockScreenIfLocked()) return
         binding = ActivityNoteEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -725,6 +725,15 @@ class NoteEditorActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.reminder_cancel, null)
             .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Covers the auto-lock window elapsing while this screen was already open and the user
+        // merely backgrounded (not closed) the app -- onCreate's own check only runs once, on
+        // first opening this exact Activity instance. Whatever was being typed is already safe
+        // either way: onPause (below) always saves before the app can actually leave this screen.
+        redirectToLockScreenIfLocked()
     }
 
     override fun onPause() {

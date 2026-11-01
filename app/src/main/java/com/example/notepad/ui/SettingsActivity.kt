@@ -7,7 +7,6 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.lifecycle.lifecycleScope
 import com.example.notepad.R
@@ -22,7 +21,7 @@ import com.example.notepad.security.SecurityPrefs
 import kotlinx.coroutines.launch
 
 /** One screen for everything that isn't a note: reminder time, folders, trash, backup, PIN lock. */
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : LockGuardedActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var repository: NoteRepository
@@ -35,6 +34,7 @@ class SettingsActivity : AppCompatActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectToLockScreenIfLocked()) return
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -105,6 +105,7 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (redirectToLockScreenIfLocked()) return
         // Reflects a sign-in/out that happened in DriveSyncActivity without needing to recreate
         // this screen.
         updateDriveRow()

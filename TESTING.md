@@ -90,6 +90,7 @@ library).
 | **`DriveSyncNowIntegrationTest`** *(new, Fase 5)* | `DriveBackupHelper.syncNow` against a real Room database (not just `mergeByUuid`'s pure logic): first sync with no remote backup yet, a no-op resync doesn't duplicate anything, a newer remote copy actually updates the local row, a cross-device tombstone actually trashes the local row, and a remote failure (corrupted file / network error) propagates instead of silently dropping local data |
 | **`DriveBackupWorkerTest`** *(new, Fase 5)* | `DriveBackupWorker.doWork()` via `TestListenableWorkerBuilder`: nobody signed in to Drive succeeds without attempting a sync (real, no seam needed); a successful sync succeeds; a failed sync asks WorkManager to retry |
 | **`DriveBackupScheduleTest`** *(new, Fase 5)* | `schedulePeriodicBackup`/`triggerImmediateBackup` actually enqueue the unique work request they document enqueueing (via the real, test-mode `WorkManager`), including the network constraint and `triggerImmediateBackup`'s replace-not-stack behavior when called repeatedly |
+| **`LockGuardedActivityTest`** *(new, Fase 6)* | Regression guard for the app-wide PIN lock bypass (see Session 13's bug writeup below): launching the exported `SearchActivity` directly while locked opens the lock screen instead of showing notes; an already-open `NoteEditorActivity` locks on the next `onResume` once the auto-lock window elapses, not just on a fresh launch |
 
 ### Known gaps (not covered, and why)
 

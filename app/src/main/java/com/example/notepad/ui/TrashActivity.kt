@@ -3,7 +3,6 @@ package com.example.notepad.ui
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.notepad.R
@@ -15,7 +14,7 @@ import com.example.notepad.notification.NoteReminderScheduler
 import kotlinx.coroutines.launch
 
 /** Notes that were deleted stay here (not gone for good) until restored or emptied. */
-class TrashActivity : AppCompatActivity() {
+class TrashActivity : LockGuardedActivity() {
 
     private lateinit var binding: ActivityTrashBinding
     private lateinit var repository: NoteRepository
@@ -24,6 +23,7 @@ class TrashActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectToLockScreenIfLocked()) return
         binding = ActivityTrashBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -86,5 +86,10 @@ class TrashActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.reminder_cancel, null)
             .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        redirectToLockScreenIfLocked()
     }
 }

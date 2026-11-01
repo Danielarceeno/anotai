@@ -4,7 +4,6 @@ import android.app.SearchManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.lifecycle.ViewModelProvider
@@ -22,7 +21,7 @@ import kotlinx.coroutines.launch
  * explicit submit. Typing is debounced (300ms) before it reaches the
  * database so fast typing doesn't fire a query per keystroke.
  */
-class SearchActivity : AppCompatActivity() {
+class SearchActivity : LockGuardedActivity() {
 
     private lateinit var binding: ActivitySearchBinding
     private lateinit var adapter: NoteAdapter
@@ -35,6 +34,10 @@ class SearchActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Exported (the system search box needs to reach it) -- without this, any other app on
+        // the device could launch it directly, bypassing the PIN lock entirely. See
+        // LockGuardedActivity's own doc.
+        if (redirectToLockScreenIfLocked()) return
         binding = ActivitySearchBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -82,6 +85,7 @@ class SearchActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (redirectToLockScreenIfLocked()) return
         UndoDeleteState.consumeRecent()?.let { noteId ->
             Snackbar.make(binding.root, R.string.note_deleted_message, Snackbar.LENGTH_LONG)
                 .setAction(R.string.action_undo) { lifecycleScope.launch { repository.restore(noteId) } }
