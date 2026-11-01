@@ -99,6 +99,12 @@ dependencies {
 
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
+    // Tiny, dependency-free artifact (no Android framework or test-runner code) meant exactly
+    // for being referenced from production code: lets NoteEditorActivity's own
+    // unlockIdlingResource tell Espresso when the off-main-thread password check (PBKDF2) is in
+    // flight, so instrumented tests can wait for it deterministically instead of polling/sleeping.
+    implementation("androidx.test.espresso:espresso-idling-resource:3.6.1")
+
     // Pages the main notes list from Room instead of loading every row at once (see
     // NoteRepository.observeAllPaged / PagedNoteAdapter).
     implementation("androidx.paging:paging-runtime-ktx:3.3.2")

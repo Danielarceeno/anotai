@@ -25,6 +25,7 @@ import com.example.notepad.data.FolderRepository
 import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.databinding.ActivityNoteEditorBinding
+import androidx.test.espresso.idling.CountingIdlingResource
 import com.example.notepad.notification.NoteReminderScheduler
 import com.example.notepad.notification.ReminderNotifier
 import com.example.notepad.security.PasswordHasher
@@ -232,23 +233,31 @@ class NoteEditorActivity : AppCompatActivity() {
 
     /** Verifies the password typed into [ActivityNoteEditorBinding.notePasswordInput] against
      *  [selectedPasswordHash]/[selectedPasswordSalt] off the main thread (PBKDF2 at 120k
-     *  iterations is tens of milliseconds -- noticeable jank if run inline with the click). */
+     *  iterations is tens of milliseconds -- noticeable jank if run inline with the click).
+     *  Wrapped in [unlockIdlingResource] (a no-op outside instrumented tests -- see its own doc)
+     *  so a test can wait for this specific background hop deterministically instead of
+     *  polling/sleeping for however long PBKDF2 happens to take on the test device. */
     private fun tryUnlockNote() {
         val entered = binding.notePasswordInput.text.toString()
         val hash = selectedPasswordHash
         val salt = selectedPasswordSalt
+        unlockIdlingResource.increment()
         lifecycleScope.launch {
-            val matches = withContext(Dispatchers.Default) {
-                PasswordHasher.matches(entered, salt.fromHex(), hash)
-            }
-            if (matches) {
-                binding.notePasswordError.visibility = View.GONE
-                binding.notePasswordInput.text?.clear()
-                isNoteLocked = false
-                applyTypeVisibility()
-                loadBodyIntoViews()
-            } else {
-                binding.notePasswordError.visibility = View.VISIBLE
+            try {
+                val matches = withContext(Dispatchers.Default) {
+                    PasswordHasher.matches(entered, salt.fromHex(), hash)
+                }
+                if (matches) {
+                    binding.notePasswordError.visibility = View.GONE
+                    binding.notePasswordInput.text?.clear()
+                    isNoteLocked = false
+                    applyTypeVisibility()
+                    loadBodyIntoViews()
+                } else {
+                    binding.notePasswordError.visibility = View.VISIBLE
+                }
+            } finally {
+                unlockIdlingResource.decrement()
             }
         }
     }
@@ -880,5 +889,13 @@ class NoteEditorActivity : AppCompatActivity() {
          *  above anything this note ever actually displays it at (see [decodeSampledBitmap]'s
          *  240x240 preview), but enough to still look sharp if ever viewed/exported full-screen. */
         private const val MAX_STORED_IMAGE_DIMENSION = 1600
+
+        /** Testability seam for [tryUnlockNote]'s off-main-thread password check: a plain
+         *  [CountingIdlingResource] has no effect at all outside an instrumented test (nothing
+         *  calls `IdlingRegistry.register` on it in production), so this costs nothing at
+         *  runtime -- it only lets a test that *does* register it (e.g. `NotePasswordLockTest`)
+         *  have Espresso automatically wait for an in-flight unlock instead of polling/sleeping
+         *  for however long PBKDF2 happens to take on that device. */
+        val unlockIdlingResource = CountingIdlingResource("NoteEditorActivity.unlockNote")
     }
 }
