@@ -85,6 +85,7 @@ library).
 | **`DriveBackupHelperSyncRaceTest`** | Two concurrent `syncNow` calls, raced against a fake in-memory remote, never duplicate the same remote-only note -- the `Mutex` guarantee, finally verified instead of just reasoned about |
 | **`TodayNotesWidgetRenderingTest`** | The widget's real per-row `RemoteViews` (via `RemoteViews.apply`, not a full `AppWidgetHost`): blank-title fallback (body preview / checklist label / **locked placeholder, never the real body**), a real title always wins, `hasStableIds`/count |
 | **`NotificationTapOpensCalendarDayTest`** | An actual tap on the real, posted notification (via UiAutomator, through the system shade) opens today's day dialog with that note in it |
+| **`NoteEditorRotationTest`** *(new, Fase 4)* | A config change (rotation) while editing a brand-new, never-yet-saved text or checklist note keeps what was typed and inserts exactly one row for it, never two (regression guard -- see Session 11's bug writeup below); recreating an *already-saved* note twice in a row still doesn't duplicate it either |
 
 ### Known gaps (not covered, and why)
 

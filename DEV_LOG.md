@@ -6,6 +6,64 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 11 — Test strategy overhaul, Phase 4: editor rotation bug (2026-11-01)
+
+Started Fase 4 (the editor/security-critical flows) by writing `NoteEditorRotationTest` to check
+that a config change (screen rotation) while editing a note doesn't lose or duplicate it.
+
+### Bug found and fixed this session
+**Rotating a brand-new, never-yet-saved note duplicated it in the database.**
+
+Root cause: `NoteEditorActivity.saveIfNeeded()` (called from `onPause()`) inserts a new `Note` row
+asynchronously on `NotepadApplication.applicationScope`, then sets this Activity instance's own
+`note` field once that insert completes. A config change tears down and recreates the Activity
+*before* that background insert necessarily finishes. The recreated instance reads the same
+original `Intent` (still missing `EXTRA_NOTE_ID`, since the first instance never got the chance to
+rewrite it), so it has no way to tell "this note already has a row in flight" from "this is a
+genuinely new note" — it treats it as new again, and the next `onPause()` inserts a second row.
+Confirmed by the test's own assertion failing with `found 2 rows expected:<1> but was:<2>`
+(reproduced for both a text note and a checklist note). Bonus related finding, same root cause:
+for a checklist note specifically, items added but not yet identified by a row id were also lost
+from the UI entirely on `recreate()` (no automatic RecyclerView/adapter-data restoration, unlike
+`EditText`'s own automatic view-state restoration, which is why the *typed text* fields merely
+*looked* unaffected even though the underlying row still duplicated).
+
+Reported to the user before fixing, per this mission's own rule; fix authorized, proceeded with a
+regression test proving red-before/green-after.
+
+**Fix**: `Note.uuid` is a stable, client-generated id already set (by a default constructor
+parameter) at `Note` construction time -- synchronously, unlike the row `id`, which only exists
+after the insert completes. Generating that uuid explicitly, synchronously, in `saveIfNeeded()`
+(instead of leaving it to `Note`'s own default generator buried inside the async coroutine) lets
+`NoteEditorActivity` carry it through `onSaveInstanceState()`/`onCreate(savedInstanceState)` as
+`pendingNewNoteUuid`, so a recreated instance can look the row up by uuid (`NoteDao.getByUuid`,
+new) instead of treating the note as new again.
+
+That alone wasn't quite enough: `onCreate`'s own uuid lookup can itself race ahead of the *first*
+instance's still-in-flight insert and come back empty. First attempt at closing that race (always
+generating a fresh uuid per save attempt) actually made it worse -- it just meant a *second*,
+differently-uuid'd row got inserted once the recovered instance eventually saved too. The real fix
+has two parts: (1) reuse the already-pending uuid across save attempts instead of regenerating a
+new one each time, and (2) move the "does a row for this uuid already exist?" check from
+`onCreate` time into `saveIfNeeded()`'s own coroutine, right before deciding insert vs. update --
+the last word on that question has to come from right next to the write itself, not from a lookup
+that happened earlier and may already be stale.
+
+Verified: with the fix reverted, `NoteEditorRotationTest`'s text-note and checklist-note cases both
+fail with the exact duplicate-row assertion (`found 2 rows`); restored, all three cases
+(text, checklist, and recreating an already-saved note twice) pass repeatedly.
+
+Two unrelated test-only flakes surfaced and fixed along the way (not production bugs): the soft
+keyboard's own auto-capitalization of the first typed letter made a case-sensitive text assertion
+flaky (now compared case-insensitively), and chaining `typeText(...)` directly into
+`pressImeActionButton()` in one `perform()` call sometimes fired the IME action before the last
+character committed, truncating a checklist item (split into two separate `perform()` calls,
+matching the pattern `ChecklistAddRowTest`/`CreateEditNoteFlowTest` already use).
+
+Full suite (unit + instrumented) green after the fix.
+
+---
+
 ## Session 10 — Test strategy overhaul, Phase 3: database and migrations (2026-11-01)
 
 Continuation of Sessions 8-9's mission: real Room migration tests, FTS5 consistency through the

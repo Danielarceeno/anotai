@@ -66,6 +66,13 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE id = :id")
     suspend fun getById(id: Long): Note?
 
+    /** Looks a note up by its stable [Note.uuid] instead of its local autoincrement [Note.id] --
+     *  used by [com.example.notepad.ui.NoteEditorActivity] to find a brand-new note's row again
+     *  after a config change/process death recreates the Activity before that row's id was ever
+     *  known to it (see that class's `pendingNewNoteUuid` doc). */
+    @Query("SELECT * FROM notes WHERE uuid = :uuid LIMIT 1")
+    suspend fun getByUuid(uuid: String): Note?
+
     /**
      * All active notes that have a reminder date set, regardless of when it falls.
      * Recurring notes (weekly/monthly/...) only store their first occurrence in

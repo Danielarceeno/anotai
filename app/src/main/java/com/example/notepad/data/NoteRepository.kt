@@ -144,6 +144,8 @@ class NoteRepository(
 
     suspend fun getById(id: Long): Note? = dao.getById(id)
 
+    suspend fun getByUuid(uuid: String): Note? = dao.getByUuid(uuid)
+
     fun observeAllReminders(): LiveData<List<Note>> = dao.observeAllReminders()
 
     /** Short-TTL memoized -- see [RemindersCache]'s doc for why: this specific query gets hit by

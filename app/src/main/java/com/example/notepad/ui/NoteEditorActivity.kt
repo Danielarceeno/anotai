@@ -74,6 +74,16 @@ class NoteEditorActivity : AppCompatActivity() {
     private var selectedImagePath = ""
     private var selectedPasswordHash = ""
     private var selectedPasswordSalt = ""
+    /** Set synchronously (on this thread, before the actual DB write is even launched) the
+     *  moment a brand-new note's *first* save begins, to exactly the uuid that save's draft
+     *  [Note] will have -- [Note.uuid] defaults to a fresh random one at construction time,
+     *  normally generated too late (inside the background save coroutine) for anything
+     *  synchronous like [onSaveInstanceState] to have caught it otherwise. Without this, a config
+     *  change (or process death) arriving between that first save starting and [onCreate]'s next
+     *  run has no way to know this not-yet-identified note already has a row in flight -- its
+     *  [EXTRA_NOTE_ID]-less Intent looks exactly like "create a new note" again, and the next save
+     *  duplicates it. Cleared once [loadNoteIntoUi] actually finds the row. */
+    private var pendingNewNoteUuid: String? = null
     private val colorSwatches = mutableListOf<ImageView>()
     private val colorRings = mutableListOf<View>()
 
@@ -158,45 +168,82 @@ class NoteEditorActivity : AppCompatActivity() {
         binding.unlockNoteButton.setOnClickListener { tryUnlockNote() }
 
         val noteId = intent.getLongExtra(EXTRA_NOTE_ID, -1L)
+        // See pendingNewNoteUuid's own doc: a brand-new note that already got its first
+        // (async) save before this exact Activity instance existed -- a config change, or
+        // process death, recreating it before EXTRA_NOTE_ID was ever known -- carries its uuid
+        // here instead, so it can be found and treated as existing rather than inserted again.
+        val pendingUuid = savedInstanceState?.getString(KEY_PENDING_NEW_NOTE_UUID)
         if (noteId != -1L) {
+            lifecycleScope.launch { loadNoteIntoUi(repository.getById(noteId)) }
+        } else if (pendingUuid != null) {
             lifecycleScope.launch {
-                note = repository.getById(noteId)
-                binding.titleInput.setText(note?.title.orEmpty())
-                noteType = note?.type ?: Note.TYPE_TEXT
-                selectedDueDate = note?.dueDate ?: 0L
-                selectedRepetition = note?.repetition ?: Note.REPEAT_NONE
-                selectedRepeatUntil = note?.repeatUntil ?: 0L
-                selectedReminderTimeMinutes = note?.reminderTimeMinutes ?: -1
-                selectedReminderEndTimeMinutes = note?.reminderEndTimeMinutes ?: -1
-                selectedFolderId = note?.folderId ?: 0L
-                selectedImagePath = note?.imagePath ?: ""
-                selectedPasswordHash = note?.passwordHash ?: ""
-                selectedPasswordSalt = note?.passwordSalt ?: ""
-                // While locked, the body/checklist is never loaded into the UI at all (not just
-                // visually hidden) -- so the protected content never sits in a visible EditText
-                // or the accessibility tree until the right password is entered.
-                isNoteLocked = selectedPasswordHash.isNotEmpty()
-                updateFolderRowText()
-                updateImagePreview()
-                applyTypeVisibility()
-                updateReminderRowText()
-                if (!isNoteLocked) loadBodyIntoViews()
-                binding.overflowButton.visibility = View.VISIBLE
-                val customColor = note?.customColorArgb
-                if (customColor != null) selectCustomColor(customColor) else selectColor(note?.colorIndex ?: lastUsedColorIndex())
+                val found = repository.getByUuid(pendingUuid)
+                if (found != null) {
+                    loadNoteIntoUi(found)
+                } else {
+                    // The insert hasn't landed yet (a second config change arriving faster than
+                    // the first save's background write) -- keep carrying the same uuid forward
+                    // instead of falling back to a plain new note, so the next attempt (or the
+                    // save this onCreate's own setup will trigger) still has a chance to match it.
+                    pendingNewNoteUuid = pendingUuid
+                    setUpAsNewNote()
+                }
             }
         } else {
-            noteType = intent.getIntExtra(EXTRA_NOTE_TYPE, Note.TYPE_TEXT)
-            selectedDueDate = intent.getLongExtra(EXTRA_DUE_DATE, 0L)
-            selectedFolderId = intent.getLongExtra(EXTRA_FOLDER_ID, 0L)
-            applyTypeVisibility()
-            updateReminderRowText()
-            updateFolderRowText()
-            updateImagePreview()
-            // New note: pick up on the color the user picked last time, rather than
-            // always resetting to the same default, so a color scheme sticks across notes.
-            selectColor(lastUsedColorIndex())
+            setUpAsNewNote()
         }
+    }
+
+    /** Populates every field from an already-saved [loaded] note -- shared by the normal
+     *  [EXTRA_NOTE_ID] path and the [pendingNewNoteUuid] recovery path, which both end up with a
+     *  real [Note] to show, just found a different way. */
+    private fun loadNoteIntoUi(loaded: Note?) {
+        note = loaded
+        pendingNewNoteUuid = null
+        binding.titleInput.setText(loaded?.title.orEmpty())
+        noteType = loaded?.type ?: Note.TYPE_TEXT
+        selectedDueDate = loaded?.dueDate ?: 0L
+        selectedRepetition = loaded?.repetition ?: Note.REPEAT_NONE
+        selectedRepeatUntil = loaded?.repeatUntil ?: 0L
+        selectedReminderTimeMinutes = loaded?.reminderTimeMinutes ?: -1
+        selectedReminderEndTimeMinutes = loaded?.reminderEndTimeMinutes ?: -1
+        selectedFolderId = loaded?.folderId ?: 0L
+        selectedImagePath = loaded?.imagePath ?: ""
+        selectedPasswordHash = loaded?.passwordHash ?: ""
+        selectedPasswordSalt = loaded?.passwordSalt ?: ""
+        // While locked, the body/checklist is never loaded into the UI at all (not just
+        // visually hidden) -- so the protected content never sits in a visible EditText
+        // or the accessibility tree until the right password is entered.
+        isNoteLocked = selectedPasswordHash.isNotEmpty()
+        updateFolderRowText()
+        updateImagePreview()
+        applyTypeVisibility()
+        updateReminderRowText()
+        if (!isNoteLocked) loadBodyIntoViews()
+        binding.overflowButton.visibility = View.VISIBLE
+        val customColor = loaded?.customColorArgb
+        if (customColor != null) selectCustomColor(customColor) else selectColor(loaded?.colorIndex ?: lastUsedColorIndex())
+    }
+
+    private fun setUpAsNewNote() {
+        noteType = intent.getIntExtra(EXTRA_NOTE_TYPE, Note.TYPE_TEXT)
+        selectedDueDate = intent.getLongExtra(EXTRA_DUE_DATE, 0L)
+        selectedFolderId = intent.getLongExtra(EXTRA_FOLDER_ID, 0L)
+        applyTypeVisibility()
+        updateReminderRowText()
+        updateFolderRowText()
+        updateImagePreview()
+        // New note: pick up on the color the user picked last time, rather than
+        // always resetting to the same default, so a color scheme sticks across notes.
+        selectColor(lastUsedColorIndex())
+    }
+
+    /** Persists [pendingNewNoteUuid] (if this Activity has a not-yet-identified new note in
+     *  flight) across a config change or process death, so [onCreate] can find that note's row
+     *  again instead of inserting a duplicate -- see that field's own doc. */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        pendingNewNoteUuid?.let { outState.putString(KEY_PENDING_NEW_NOTE_UUID, it) }
     }
 
     private fun setupChecklist() {
@@ -752,6 +799,17 @@ class NoteEditorActivity : AppCompatActivity() {
         val reminderEndTimeMinutes = selectedReminderEndTimeMinutes
         val folderId = selectedFolderId
         val imagePath = selectedImagePath
+        // Generated here (synchronously, on whatever thread called saveIfNeeded -- always the
+        // main thread, from onPause) rather than left to Note's own default random generator
+        // inside the coroutine below, specifically so pendingNewNoteUuid (and therefore
+        // onSaveInstanceState) can know it in time -- see that field's own doc. Reusing an
+        // already-pending uuid (instead of always generating a fresh one) matters when this
+        // exact save is itself the recovery path's own first save: generating a *different* uuid
+        // here would leave the earlier, still-in-flight insert on the old uuid to land as a
+        // second, permanently-unreachable row once this one also inserts under its own.
+        val newNoteUuid = if (existing == null) {
+            (pendingNewNoteUuid ?: java.util.UUID.randomUUID().toString()).also { pendingNewNoteUuid = it }
+        } else null
 
         saveInFlight = true
         NotepadApplication.applicationScope.launch {
@@ -763,8 +821,14 @@ class NoteEditorActivity : AppCompatActivity() {
                 // specifically so Activity destruction can't cancel it mid-write.
                 saveRaceHookForTesting?.invoke()
                 val saved: Note
-                if (existing != null) {
-                    saved = existing.copy(
+                // Re-checked here, right at save time, rather than trusted from onCreate's own
+                // earlier lookup: that lookup can race ahead of an still-in-flight insert from a
+                // *previous* instance of this same not-yet-identified note (see newNoteUuid's own
+                // doc) and come back empty, so this is the actual, final word on whether a row
+                // already exists for it by now.
+                val existingRow = existing ?: newNoteUuid?.let { repo.getByUuid(it) }
+                if (existingRow != null) {
+                    saved = existingRow.copy(
                         title = title,
                         body = body,
                         isFormatted = isFormatted,
@@ -783,6 +847,14 @@ class NoteEditorActivity : AppCompatActivity() {
                         modifiedDate = System.currentTimeMillis()
                     )
                     repo.update(saved)
+                    // Harmless no-op if this Activity instance is already destroyed; only
+                    // matters if it's merely paused and comes back -- same as the insert branch
+                    // below. Also means the next saveIfNeeded() on this instance (if any) goes
+                    // through the normal existing-note path instead of a uuid lookup again.
+                    if (existing == null) {
+                        note = saved
+                        pendingNewNoteUuid = null
+                    }
                 } else {
                     val draft = Note(
                         title = title,
@@ -799,13 +871,15 @@ class NoteEditorActivity : AppCompatActivity() {
                         reminderTimeMinutes = reminderTimeMinutes,
                         reminderEndTimeMinutes = reminderEndTimeMinutes,
                         folderId = folderId,
-                        imagePath = imagePath
+                        imagePath = imagePath,
+                        uuid = newNoteUuid!!
                     )
                     val id = repo.insert(draft)
                     saved = draft.copy(id = id)
                     // A harmless no-op write if this Activity instance is already destroyed by
                     // the time this line runs; only matters if it's merely paused and comes back.
                     note = saved
+                    pendingNewNoteUuid = null
                     // "Create" (not every edit) is the moment the user most needs to know this
                     // note is actually safe -- an immediate background sync instead of waiting
                     // for the next periodic tick (up to several hours away). A no-op if nobody's
@@ -880,6 +954,7 @@ class NoteEditorActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val KEY_PENDING_NEW_NOTE_UUID = "pending_new_note_uuid"
         const val EXTRA_NOTE_ID = "note_id"
         const val EXTRA_NOTE_TYPE = "note_type"
         const val EXTRA_DUE_DATE = "due_date"
