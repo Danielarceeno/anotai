@@ -33,6 +33,7 @@ library).
 | `data/drive/DriveBackupHelperTest` | `mergeByUuid`: newer-wins conflicts, tombstone drops (both directions -- locally deleted and cross-device deleted), duplicate-within-one-backup dedup |
 | `data/BrazilianHolidaysTest` | Fixed and Easter-derived (Carnaval, Sexta-feira Santa, Corpus Christi) holidays against the real public calendar for two different years; per-year memoization doesn't leak a stale date across years |
 | `ui/NotesSortPrefsTest` | Each sort mode's ordering, pinned-always-first |
+| `security/PasswordHasherTest` | PBKDF2 hashing (shared by the app PIN and per-note passwords) is deterministic for the same secret+salt, rejects a wrong secret, and hex round-trips |
 
 ## Instrumented tests (`app/src/androidTest/`)
 
@@ -63,35 +64,58 @@ library).
 | `WidgetProvidersRegisteredTest` | All four widget providers (the resizable one + the new 1x1 / 2x2 list / 2x2 summary) are actually installed and parse a non-zero size from their `appwidget-provider` XML |
 | **`SettingsHolidaysToggleTest`** *(new)* | The "Show Brazilian holidays" switch is off by default and persists through `CalendarPrefs` when flipped |
 | **`SettingsOverdueHighlightToggleTest`** *(new)* | The "Highlight overdue tasks" switch is *on* by default (pre-existing behavior being made optional, not a new opt-in) and persists through `CalendarPrefs` when flipped |
+| **`SettingsSetPinDialogTest`** | `showSetPinDialog`'s own validation: too-short PIN, mismatched confirmation, a valid PIN enables the lock and (checked against the raw `SharedPreferences` file) is genuinely salted -- same PIN set twice hashes differently |
+| **`SettingsChangeAndRemovePinTest`** | Changing the PIN invalidates the old one and accepts the new one; turning the switch off clears `SecurityPrefs` and hides `changePinRow` |
+| **`NoteFormattingTest`** | Bold/italic/underline round-trip through `Html.toHtml`/`fromHtml`; toggling the same style twice removes it; no-selection is a no-op; malformed HTML doesn't crash; `plainText()` strips tags only when formatted |
+| **`NoteColorsTest`** | `isLight`'s true/false boundary on real swatches; `pressColor` lightens every channel and saturates at white; `resolveArgb` prefers a note's custom color over its palette index; `colorResFor` clamps out-of-range indices |
+| **`ShareImageHelperTest`** | Text, checklist, long, and blank-title notes all render to a non-empty file with a valid, readable `FileProvider` `Uri` |
+| **`SwipeToDeleteTest`** | Swipe left/right both trash the note and show Undo; Undo restores it; swiping is disabled during bulk selection |
+| **`SettingsTogglesTest`** / **`SettingsAutoLockTest`** | Notifications toggle, widget range (3/7 days), and auto-lock picker all persist through their own prefs object and reflect back in the row text |
+| **`DriveBackupHelperIntervalTest`** | `getIntervalHours`/`setIntervalHours` persistence, independent of the (sign-in-gated) UI row that picks it |
+| **`NoteEditorSaveRaceTest`** | A note still saves exactly once even if the Activity is fully destroyed while the save coroutine is mid-flight (regression guard for the historical duplicate/lost-note bug) |
+| **`DriveBackupHelperSyncRaceTest`** | Two concurrent `syncNow` calls, raced against a fake in-memory remote, never duplicate the same remote-only note -- the `Mutex` guarantee, finally verified instead of just reasoned about |
+| **`TodayNotesWidgetRenderingTest`** | The widget's real per-row `RemoteViews` (via `RemoteViews.apply`, not a full `AppWidgetHost`): blank-title fallback (body preview / checklist label / **locked placeholder, never the real body**), a real title always wins, `hasStableIds`/count |
+| **`NotificationTapOpensCalendarDayTest`** | An actual tap on the real, posted notification (via UiAutomator, through the system shade) opens today's day dialog with that note in it |
 
 ### Known gaps (not covered, and why)
 
-- **PIN set/change dialog's own UI** (`SettingsActivity.showSetPinDialog`) -- `SecurityLockFlowTest`
-  sets the PIN directly via `SecurityPrefs` to test `LockActivity`'s gating logic in isolation;
-  the dialog's validation (`pin_too_short`, `pin_mismatch`) has no test of its own yet.
 - **Drive backup/restore against a real Google account** -- `DriveSyncActivityTest` only covers
   the signed-out render. Sign-in requires a registered OAuth client for this machine's signing
   cert (see `DriveBackupHelper`'s doc); the merge *logic* itself is covered thoroughly by
-  `DriveBackupHelperTest` + `NoteRepositoryTombstoneSyncTest`, just not the live network calls.
-- **The Drive sync `Mutex`'s concurrency guarantee** -- no test actually races two `syncNow` calls
-  against each other; verified by code reasoning only (see `DEV_LOG.md`, Session 6).
-- **Widget *rendering*** -- `WidgetProvidersRegisteredTest` confirms the four providers are
-  installed and sized, not that their `RemoteViews` actually render correctly once placed (no
-  reliable way to place a widget via instrumentation without `AppWidgetHost`, which this suite
-  doesn't use yet). That includes `TodayNotesRemoteViewsFactory`'s per-row `fillInIntent`
-  (`CalendarActivity.EXTRA_OPEN_DAY_MILLIS`, Session 7) -- covered by code review only, same gap.
-- **`NoteFormatting`** (bold/italic/underline) and **`NoteColors`** (`isLight`/`pressColor`) --
-  both only usable as instrumented tests (real `android.text.Html`/`android.graphics.Color`), and
-  neither has one yet.
-- **`ShareImageHelper`**, **swipe-to-delete** (`MainActivity`'s `ItemTouchHelper`), and most of
-  `SettingsActivity` beyond theme (notifications toggle, widget range, auto-lock picker, backup
-  frequency) have no automated coverage.
-- **`NoteEditorActivity.saveIfNeeded()`'s applicationScope fix** (this session) has no direct
-  automated regression test -- simulating "the Activity is destroyed mid-save" from Espresso
-  isn't straightforward (there's no way to force `onDestroy()` to race a specific coroutine
-  suspension point without a seam to inject a delay). `CreateEditNoteFlowTest` exercises the
-  normal save path and would catch a *total* regression (note never saves at all), but not the
-  specific race this fix addresses.
+  `DriveBackupHelperTest` + `NoteRepositoryTombstoneSyncTest`, and the sync `Mutex`'s concurrency
+  guarantee by `DriveBackupHelperSyncRaceTest`, just not the live network calls or the
+  sign-in-gated backup-frequency row itself (`DriveBackupHelperIntervalTest` covers that row's
+  underlying persistence directly instead).
+- **Widget per-row `fillInIntent`** (`CalendarActivity.EXTRA_OPEN_DAY_MILLIS`) and the **compact/
+  full layout switch** (`TodayNotesWidgetProvider.isCompactSize`/`onAppWidgetOptionsChanged`) --
+  `TodayNotesWidgetRenderingTest` renders real rows via `RemoteViews.apply`, but that can't read
+  back an opaque `fillInIntent` (only the system's widget host combines it with a
+  `PendingIntentTemplate` at click time) or report a widget size the system only tracks for an
+  *actually-bound* widget id. Closing this needs a real `AppWidgetHost` placement (with a
+  `BIND_APPWIDGET` permission grant via `adoptShellPermissionIdentity`), left for later as a
+  bigger, more fragile undertaking.
+
+### Testability seams added this session
+
+Small production-code changes made only to let a test exercise something otherwise unreachable,
+per this project's own rule that these must be listed and justified separately, not snuck in
+alongside a behavior fix:
+
+- **`NoteEditorActivity.unlockIdlingResource`** (`CountingIdlingResource`) -- lets
+  `NotePasswordLockTest` wait deterministically for the off-main-thread password check instead of
+  polling/sleeping for however long PBKDF2 happens to take. No-op unless a test registers it via
+  `IdlingRegistry`.
+- **`NoteEditorActivity.saveRaceHookForTesting`** (nullable suspend hook) -- lets
+  `NoteEditorSaveRaceTest` force a window where the Activity is destroyed while `saveIfNeeded()`'s
+  background save is still in flight. Null (no-op) outside that one test.
+- **`DriveBackupHelper.DriveRemoteStore`** (interface) -- lets `DriveBackupHelperSyncRaceTest` race
+  two `syncNow` calls against a fake, in-memory remote instead of a real Drive account.
+  `account: GoogleSignInAccount` became nullable as part of this (only meaningful when
+  `remoteStore` isn't overridden); every production call site already always passes one, so this
+  is source-compatible.
+- **`ShareImageHelper.renderToBitmap`/`saveToCache`** -- `private` to `@VisibleForTesting`, no
+  behavior change, so `ShareImageHelperTest` can exercise them without going through `share()`'s
+  real system share-sheet Intent (which Espresso has no way to dismiss).
 
 ## CI: why `instrumented-tests` was failing (resolved)
 
@@ -244,3 +268,39 @@ the right symptom (`Activity.recreate()`, "must be called from main thread") but
 misleading about the cause -- they look identical whether the problem is a leaked Activity from
 a *different* test or (as it turned out) the failing test's own cleanup code running off the main
 thread. Pulling the full HTML report earlier would have found this in one round instead of four.
+
+### Round 5 (Fase 1 of the test-strategy overhaul): the same two lessons, new tests
+
+Adding ~15 new test classes in one pass surfaced the project's own two documented lessons again,
+in new tests that hadn't been written yet when those lessons were first learned:
+
+1. **`SettingsSetPinDialogTest`** failed only in a full-suite run, never alone: a plain `@Before`
+   runs after `SettingsActivity.onCreate` had already read a PIN left over from
+   `SettingsChangeAndRemovePinTest` (set directly via `SecurityPrefs`, never cleared) into
+   `pinLockSwitch`'s initial checked state -- the switch launched already *on*, so the test's own
+   click turned it *off* instead of opening the dialog, and every assertion after that failed for
+   an unrelated reason. **Fix**: the same `RuleChain.outerRule(TestPrereqs.resetStateRule())`
+   pattern `CalendarActivityTest` already uses, seeding/resetting before launch instead of after.
+2. **`SwipeToDeleteTest`** had the identical shape: notes seeded from a plain `@Before`, which
+   races `MainActivity`'s `PagingData` subscription the same way `CalendarDayDialogShowsNotesTest`'s
+   own doc already warns about -- only actually lost the race under the load of ~90 other tests
+   running first, never alone. Same `RuleChain` fix.
+
+A third, unrelated infra lesson: `NoteEditorSaveRaceTest`'s first version used
+`Espresso.pressBack()` to trigger `onPause()`. With no other Activity in that test's task, that
+throws `NoActivityResumedException` and kills the whole app process -- and that crash corrupted
+the emulator badly enough (`cmd: Can't find service: package` on the next install) that it needed
+a full restart, which in turn cascaded into unrelated failures in whatever ran right after on the
+next attempt. **Fix**: drive the lifecycle through `ActivityScenario.moveToState()` directly
+(`onPause()` always calls `saveIfNeeded()` regardless of why) instead of a real back-stack change.
+**Lesson**: a test that can crash the *app process*, not just fail an assertion, can take the rest
+of a full-suite run down with it -- worth specifically avoiding, not just tolerating as "a test
+failure like any other."
+
+A fourth, purely environmental issue: the emulator died outright (process gone, `adb devices`
+empty) once more while chasing `NotificationTapOpensCalendarDayTest`'s own full-suite-only
+flakiness (residual notification-shade/window-focus state briefly affecting whichever test ran
+shortly after it) -- a plain relaunch + reboot resolved it, nothing code-related. Memory pressure
+on the host machine (a separate, very large `connectedDebugAndroidTest` run got killed by the
+harness itself for exactly this) was the likely trigger both times; stopping the Gradle daemon
+(`./gradlew --stop`) between heavy runs helped.

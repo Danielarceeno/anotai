@@ -6,6 +6,64 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 8 — Test strategy overhaul, Phase 1: closing TESTING.md's "Known gaps" (2026-11-01)
+
+Also includes an earlier, separate batch of feature work this session that got committed first,
+in its own commit, before the test-strategy mission started: per-note password lock, a free
+custom RGB/hex note color, a single-note picker home-screen widget, and a calendar-dot color fix.
+See that commit's own message for details; the rest of this entry is about the test work.
+
+Mission: work through `TESTING.md`'s "Known gaps" list (previously 10 items), one small commit
+per item, full suite green after each, never editing production code just to make a test pass
+(any seam listed and justified separately), every regression test proven to actually fail against
+the bug/race it guards before being trusted.
+
+**What got added**: ~15 new instrumented test classes plus one new unit test
+(`PasswordHasherTest`, actually from the earlier feature-work commit) covering: the PIN dialog's
+own validation + change/remove flow, `NoteFormatting`/`NoteColors`, `ShareImageHelper`,
+swipe-to-delete, the remaining Settings rows (notifications/widget range/auto-lock), a real
+regression test for `NoteEditorActivity.saveIfNeeded()`'s `applicationScope` fix, a real race test
+for `DriveBackupHelper.syncNow`'s `Mutex` (abstracted the remote half behind a new
+`DriveRemoteStore` interface for exactly this), the widget's actual rendered `RemoteViews` rows
+(via `RemoteViews.apply`, not a full `AppWidgetHost`), and an actual tap on the real posted
+notification via UiAutomator. Full details and the testability seams this needed are in
+`TESTING.md` itself now, not duplicated here.
+
+**Real bugs found, all in this session's own new tests, not the app**:
+- `NotePasswordLockTest` (written last session): the soft keyboard, left open after `typeText`,
+  silently covered `unlockNoteButton` and ate the next click -- Espresso reports `click()` as
+  "performed" either way, no feedback that a different window intercepted the touch. Confirmed via
+  logcat: not even a `Log.d` placed directly inside the button's own `OnClickListener` fired.
+- `SettingsSetPinDialogTest` and `SwipeToDeleteTest` both broke only in a full-suite run (never
+  alone): a plain `@Before` runs after the Activity's `onCreate` already read/subscribed to state
+  a *different* test (running earlier in the same process) had left behind. Same
+  `RuleChain.outerRule(TestPrereqs.resetStateRule())` fix the project had already learned once.
+- `NoteEditorSaveRaceTest`'s first version used `Espresso.pressBack()` with no other Activity in
+  its task -- throws `NoActivityResumedException` and kills the whole app process, which corrupted
+  the emulator badly enough to need a full restart and cascaded into unrelated failures in
+  whatever ran right after on the next attempt. Fixed by driving the lifecycle through
+  `ActivityScenario.moveToState()` directly instead.
+- `NotificationTapOpensCalendarDayTest` left enough residual notification-shade/window-focus
+  state that a different test shortly after it intermittently failed in two separate full-suite
+  runs. Fixed with a more thorough teardown (explicit shade collapse + double back-press to
+  unwind what the test itself opened, on top of `pressHome`).
+
+**Infra, not code**: the emulator died outright (process gone) once while chasing the last bug
+above, separately from the crash the save-race test caused -- host memory pressure under
+back-to-back full-suite runs was the likely common cause both times (the harness itself killed
+one such run for exactly this); stopping the Gradle daemon between heavy runs and a plain
+emulator relaunch were enough to recover, nothing code-related.
+
+**Suite**: 59 unit (`testDebugUnitTest`) + 96 instrumented (`connectedDebugAndroidTest`), both
+green, confirmed on a clean, fully-booted emulator (`medium_phone`, API 36) at the end.
+
+**Left out of Phase 1, and why** (both already documented as known gaps in `TESTING.md`, not
+silently dropped): the widget's per-row `fillInIntent` and its compact/full layout switch both
+need a real `AppWidgetHost` placement (with a `BIND_APPWIDGET` permission grant) to test, which
+`RemoteViews.apply` alone can't reach -- bigger, more fragile, left for later. Backup frequency's
+own Settings row is gated behind a real signed-in Drive account (a separate, pre-existing known
+gap); its underlying persistence is covered directly instead, without going through that UI.
+
 ## Session 7 — Brazilian holidays, overdue cue, notification/widget navigation (2026-10-31)
 
 User-driven session with three iterations on the same feature, each refined after direct
