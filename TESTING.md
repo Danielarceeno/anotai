@@ -78,6 +78,7 @@ library).
 | **`NoteFormattingTest`** | Bold/italic/underline round-trip through `Html.toHtml`/`fromHtml`; toggling the same style twice removes it; no-selection is a no-op; malformed HTML doesn't crash; `plainText()` strips tags only when formatted |
 | **`NoteColorsTest`** | `isLight`'s true/false boundary on real swatches; `pressColor` lightens every channel and saturates at white; `resolveArgb` prefers a note's custom color over its palette index; `colorResFor` clamps out-of-range indices |
 | **`ShareImageHelperTest`** | Text, checklist, long, and blank-title notes all render to a non-empty file with a valid, readable `FileProvider` `Uri` |
+| `BackupJsonRoundTripTest` *(extended, Fase 5)* | Plus: empty input, a very large (500k-char) note body, emoji/accented text, and an unknown future-version field being ignored rather than breaking the parse |
 | **`SwipeToDeleteTest`** | Swipe left/right both trash the note and show Undo; Undo restores it; swiping is disabled during bulk selection |
 | **`SettingsTogglesTest`** / **`SettingsAutoLockTest`** | Notifications toggle, widget range (3/7 days), and auto-lock picker all persist through their own prefs object and reflect back in the row text |
 | **`DriveBackupHelperIntervalTest`** | `getIntervalHours`/`setIntervalHours` persistence, independent of the (sign-in-gated) UI row that picks it |
@@ -86,6 +87,9 @@ library).
 | **`TodayNotesWidgetRenderingTest`** | The widget's real per-row `RemoteViews` (via `RemoteViews.apply`, not a full `AppWidgetHost`): blank-title fallback (body preview / checklist label / **locked placeholder, never the real body**), a real title always wins, `hasStableIds`/count |
 | **`NotificationTapOpensCalendarDayTest`** | An actual tap on the real, posted notification (via UiAutomator, through the system shade) opens today's day dialog with that note in it |
 | **`NoteEditorRotationTest`** *(new, Fase 4)* | A config change (rotation) while editing a brand-new, never-yet-saved text or checklist note keeps what was typed and inserts exactly one row for it, never two (regression guard -- see Session 11's bug writeup below); recreating an *already-saved* note twice in a row still doesn't duplicate it either |
+| **`DriveSyncNowIntegrationTest`** *(new, Fase 5)* | `DriveBackupHelper.syncNow` against a real Room database (not just `mergeByUuid`'s pure logic): first sync with no remote backup yet, a no-op resync doesn't duplicate anything, a newer remote copy actually updates the local row, a cross-device tombstone actually trashes the local row, and a remote failure (corrupted file / network error) propagates instead of silently dropping local data |
+| **`DriveBackupWorkerTest`** *(new, Fase 5)* | `DriveBackupWorker.doWork()` via `TestListenableWorkerBuilder`: nobody signed in to Drive succeeds without attempting a sync (real, no seam needed); a successful sync succeeds; a failed sync asks WorkManager to retry |
+| **`DriveBackupScheduleTest`** *(new, Fase 5)* | `schedulePeriodicBackup`/`triggerImmediateBackup` actually enqueue the unique work request they document enqueueing (via the real, test-mode `WorkManager`), including the network constraint and `triggerImmediateBackup`'s replace-not-stack behavior when called repeatedly |
 
 ### Known gaps (not covered, and why)
 
@@ -144,6 +148,10 @@ alongside a behavior fix:
   ...) }` and an `androidTest` asset source dir pointing at it). Not a seam exactly, but a real,
   previously-missing piece of migration-testing infrastructure: `MigrationTestHelper` needs a
   target version's schema snapshot to validate a migration's result against.
+- **`DriveBackupWorker.syncHookForTesting`** (nullable suspend hook, Fase 5) -- lets
+  `DriveBackupWorkerTest` force the sync-succeeds and sync-throws-so-retry paths without a real
+  signed-in Drive account, which an instrumented test has no way to provide. Null (the real
+  sign-in-check + `syncNow` path) outside that one test.
 
 ### Fase 2 tooling evaluation: Robolectric, MockK, kotlinx-coroutines-test, Turbine, Kotest
 

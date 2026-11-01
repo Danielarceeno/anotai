@@ -64,6 +64,40 @@ Full suite (unit + instrumented) green after the fix.
 
 ---
 
+## Session 12 — Test strategy overhaul, Phase 5: backup, Drive and sync (2026-11-01)
+
+Covered the Fase 5 mission items against `DriveBackupHelper`/`DriveBackupWorker`:
+
+- `DriveSyncNowIntegrationTest` (new): `syncNow` end-to-end against a real Room database, using
+  the same `DriveRemoteStore` fake pattern `DriveBackupHelperSyncRaceTest` already established --
+  first sync, idempotent resync, a newer remote copy actually landing as a local update, a
+  cross-device tombstone actually trashing a local row, and a remote-side failure propagating
+  instead of silently losing local data. `mergeByUuid`'s own pure-function logic was already
+  thoroughly unit-tested (`DriveBackupHelperTest`); this is the integration layer on top of it.
+- `DriveBackupWorkerTest` (new) + a small testability seam, `DriveBackupWorker
+  .syncHookForTesting` (nullable suspend hook, null outside tests): lets the test force the
+  sync-succeeds and sync-throws-so-retry `Result` branches without a real signed-in Drive account,
+  which an instrumented test has no way to provide. The "nobody signed in" branch needed no seam
+  at all -- the test device genuinely isn't signed in.
+- `DriveBackupScheduleTest` (new): `schedulePeriodicBackup`/`triggerImmediateBackup` actually
+  enqueue what they document, via `WorkManagerTestInitHelper`'s test-mode `WorkManager` (added
+  `androidx.work:work-testing` as an `androidTestImplementation` dependency).
+- `BackupJsonRoundTripTest` extended: empty input, a 500k-char note body, emoji/accented text, and
+  an unknown future-version JSON field being ignored rather than breaking the parse.
+
+No bugs found this phase -- `syncNow`'s existing Mutex/merge/tombstone/error-propagation behavior
+held up under all of the above. Left out, per the mission's own scoping: a real-Drive-account
+manual test roadmap (belongs in `docs/MANUAL_TEST_CHECKLIST.md`, not CI) -- deferred to Fase 10's
+documentation pass rather than writing it in isolation now.
+
+Also recovered from an emulator/package-manager corruption mid-run (`cmd: Can't find service:
+package`, same failure mode as prior sessions) after an unrelated test
+(`SettingsSetPinDialogTest`) triggered an `INSTRUMENTATION_ABORTED: System has crashed` --
+full `qemu-system`/`emulator` kill, `adb kill-server`/`start-server`, fresh relaunch, re-disable
+animations. Full suite green after recovery (129 tests, 0 failures).
+
+---
+
 ## Session 10 — Test strategy overhaul, Phase 3: database and migrations (2026-11-01)
 
 Continuation of Sessions 8-9's mission: real Room migration tests, FTS5 consistency through the

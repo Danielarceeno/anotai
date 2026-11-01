@@ -15,16 +15,22 @@ import com.example.notepad.data.NoteRepository
 class DriveBackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val account = DriveBackupHelper.lastSignedInAccount(applicationContext) ?: return Result.success()
         return try {
-            val db = AppDatabase.getInstance(applicationContext)
-            val repository = NoteRepository(db.noteDao(), applicationContext, db.noteTombstoneDao())
-            // Merge (by Note.uuid, newer modifiedDate wins per note) rather than blindly
-            // overwrite: another device may have added or edited notes since this device's last
-            // sync, and this runs unattended with no UI to ask the user which version should win.
-            // syncNow's own Mutex also keeps this from racing a concurrent in-app sync (or the
-            // periodic and immediate work requests racing each other) into duplicating notes.
-            DriveBackupHelper.syncNow(applicationContext, repository, account)
+            val hook = syncHookForTesting
+            if (hook != null) {
+                hook.invoke()
+            } else {
+                val account = DriveBackupHelper.lastSignedInAccount(applicationContext) ?: return Result.success()
+                val db = AppDatabase.getInstance(applicationContext)
+                val repository = NoteRepository(db.noteDao(), applicationContext, db.noteTombstoneDao())
+                // Merge (by Note.uuid, newer modifiedDate wins per note) rather than blindly
+                // overwrite: another device may have added or edited notes since this device's
+                // last sync, and this runs unattended with no UI to ask the user which version
+                // should win. syncNow's own Mutex also keeps this from racing a concurrent in-app
+                // sync (or the periodic and immediate work requests racing each other) into
+                // duplicating notes.
+                DriveBackupHelper.syncNow(applicationContext, repository, account)
+            }
             Result.success()
         } catch (e: Exception) {
             // Transient (network, token refresh, Drive outage) -- WorkManager will retry with
@@ -33,5 +39,14 @@ class DriveBackupWorker(context: Context, params: WorkerParameters) : CoroutineW
             // which is the same thing they'd have to do to fix it either way.
             Result.retry()
         }
+    }
+
+    companion object {
+        /** Testability seam: when set, replaces the real sign-in check + [DriveBackupHelper
+         *  .syncNow] call entirely -- lets [com.example.notepad.DriveBackupWorkerTest] force the
+         *  success and retry paths without a real signed-in Drive account (which an instrumented
+         *  test has no way to provide). Null (the real path) outside that one test. */
+        @androidx.annotation.VisibleForTesting
+        var syncHookForTesting: (suspend () -> Unit)? = null
     }
 }

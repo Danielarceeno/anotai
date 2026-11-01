@@ -62,4 +62,45 @@ class BackupJsonRoundTripTest {
         assertNull(BackupHelper.fromJson("not json at all"))
         assertNull(BackupHelper.fromJsonWithTombstones("not json at all"))
     }
+
+    @Test
+    fun emptyInput_returnsNullRatherThanThrowing() {
+        assertNull(BackupHelper.fromJson(""))
+        assertNull(BackupHelper.fromJsonWithTombstones(""))
+    }
+
+    @Test
+    fun aVeryLargeNoteBody_survivesTheRoundTrip() {
+        val hugeBody = "x".repeat(500_000)
+        val notes = listOf(Note(id = 1, title = "Giant note", body = hugeBody))
+
+        val restored = BackupHelper.fromJson(BackupHelper.toJson(notes))
+
+        assertEquals(hugeBody, restored?.single()?.body)
+    }
+
+    @Test
+    fun emojiAndAccentedText_surviveTheRoundTrip() {
+        val notes = listOf(Note(id = 1, title = "Reunião 🎉 amanhã às 9h — café ☕", body = "Não esquecer: pão, açúcar 🍞"))
+
+        val restored = BackupHelper.fromJson(BackupHelper.toJson(notes))
+
+        assertEquals(notes.single().title, restored?.single()?.title)
+        assertEquals(notes.single().body, restored?.single()?.body)
+    }
+
+    @Test
+    fun unknownFutureFields_areIgnoredRatherThanBreakingTheParse() {
+        // Simulates a backup file written by a future app version with fields this version
+        // doesn't know about yet -- opening an older app version on a newer backup must not
+        // crash or wipe the note, just ignore what it doesn't recognize.
+        val futureJson = """
+            [{"title":"From the future","body":"b","fromTheYear3000":true,"newFeatureField":{"nested":1}}]
+        """.trimIndent()
+
+        val restored = BackupHelper.fromJson(futureJson)
+
+        assertEquals(1, restored?.size)
+        assertEquals("From the future", restored?.single()?.title)
+    }
 }

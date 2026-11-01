@@ -149,6 +149,7 @@ dependencies {
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation("androidx.room:room-testing:2.6.1")
+    androidTestImplementation("androidx.work:work-testing:2.9.1")
     androidTestImplementation("androidx.test.espresso:espresso-contrib:3.6.1") {
         exclude(group = "org.checkerframework", module = "checker")
     }
