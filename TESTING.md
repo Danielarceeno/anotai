@@ -60,6 +60,8 @@ library).
 | `SearchShowsAllNotesTest` | A blank query browses every note instead of showing nothing |
 | `SearchFtsSubstringMatchTest` | Mid-word substring matches still work on the FTS5 index (not just whole-token matches) |
 | **`SearchFtsEdgeCasesTest`** | Emoji/accented titles are searchable; unaccented query doesn't match an accented title; 1-2 character queries (below the trigram minimum) still return correct results; ASCII case-folding works but accented-letter case-folding doesn't (documented SQLite limitation, not a bug); a very long query doesn't crash |
+| **`AppDatabaseMigrationTest`** | The real Room migration chain, 7 (hand-built schema, see below) through 15: data survives, every added column gets the right default for a pre-existing row, the trashed seed note gets a backfilled tombstone (the active one doesn't), the FTS5 index is populated from the migrated data, the `activeState` index exists |
+| **`NotesFtsConsistencyTest`** | `notes_fts` stays in sync through insert/update/trash/restore/permanently-delete; `PRAGMA integrity_check` passes after a heavier sequence of mutations across 30 notes |
 | `NoteRepositoryTombstoneSyncTest` | A tombstone synced in from another device's Drive backup actually trashes a still-active local note, against a real Room DB |
 | `BackupJsonRoundTripTest` | Plain JSON export/import and the Drive tombstone-carrying format both round-trip, including a legacy (pre-tombstone) backup file |
 | `DriveSyncActivityTest` | Signed-out state renders without crashing |
@@ -86,6 +88,17 @@ library).
 
 ### Known gaps (not covered, and why)
 
+- **Plaintext-to-SQLCipher migration** (`AppDatabase.migratePlaintextDatabaseIfNeeded`) -- testing
+  it safely would need resetting `AppDatabase`'s own static singleton instance mid-process, which
+  every *other* test in the same instrumentation run also depends on. Deferred rather than risk
+  destabilizing the rest of the suite for one test (see `DEV_LOG.md` Session 9's own account of
+  how much time a shared-static-state isolation bug cost elsewhere this same overhaul).
+- **Historical schema snapshots for versions 7-14** -- `exportSchema` was `false` since this app's
+  first version, so only v15's snapshot exists (generated once this session turned it on).
+  `AppDatabaseMigrationTest`'s v7 starting schema is hand-built instead (see its own doc), cross-
+  checked against `AppDatabase`'s migration history rather than an actual historical snapshot --
+  solid, but not quite the same guarantee a real v7 snapshot would give. Future migrations (16
+  onward) won't have this problem.
 - **Drive backup/restore against a real Google account** -- `DriveSyncActivityTest` only covers
   the signed-out render. Sign-in requires a registered OAuth client for this machine's signing
   cert (see `DriveBackupHelper`'s doc); the merge *logic* itself is covered thoroughly by
@@ -123,6 +136,13 @@ alongside a behavior fix:
 - **`ShareImageHelper.renderToBitmap`/`saveToCache`** -- `private` to `@VisibleForTesting`, no
   behavior change, so `ShareImageHelperTest` can exercise them without going through `share()`'s
   real system share-sheet Intent (which Espresso has no way to dismiss).
+- **`AppDatabase.MIGRATION_7_8` through `MIGRATION_14_15`** -- `private` to `@VisibleForTesting`,
+  no behavior change, so `AppDatabaseMigrationTest` can run the real migration objects directly
+  instead of duplicating their SQL into the test.
+- **`AppDatabase`'s `exportSchema`** -- `false` to `true` (with `ksp { arg("room.schemaLocation",
+  ...) }` and an `androidTest` asset source dir pointing at it). Not a seam exactly, but a real,
+  previously-missing piece of migration-testing infrastructure: `MigrationTestHelper` needs a
+  target version's schema snapshot to validate a migration's result against.
 
 ### Fase 2 tooling evaluation: Robolectric, MockK, kotlinx-coroutines-test, Turbine, Kotest
 

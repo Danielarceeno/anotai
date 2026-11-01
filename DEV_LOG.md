@@ -6,6 +6,43 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 10 — Test strategy overhaul, Phase 3: database and migrations (2026-11-01)
+
+Continuation of Sessions 8-9's mission: real Room migration tests, FTS5 consistency through the
+notes lifecycle, and a database integrity check.
+
+**Foundational change**: `AppDatabase.exportSchema` had been `false` since the app's first
+version, so there were no historical schema JSON snapshots to test migrations against. Turned it
+on (`ksp { arg("room.schemaLocation", ...) }`, wired into `androidTest` as a readable asset) --
+this generates a real snapshot per version from now on. No snapshot exists yet for versions 7-14
+though, so `AppDatabaseMigrationTest`'s "before" database (version 7) is built by hand with plain
+SQL instead, derived mechanically from `Note`'s current columns minus everything each later
+migration adds -- documented as a known, intentional limitation rather than a silently-assumed
+historical fact.
+
+**A real infra surprise**: the plain Android framework SQLite build on the test device has no
+FTS5 module compiled in at all ("no such module: fts5") -- only SQLCipher's own bundled SQLite
+(what `AppDatabase` actually uses in production) does. `MigrationTestHelper` defaults to the
+plain framework factory, which silently can't run `MIGRATION_12_13` (creates `notes_fts`) at all.
+Switched the test to SQLCipher's own `SupportFactory`/`SQLiteDatabase`, matching production.
+
+**What got added**: `AppDatabaseMigrationTest` runs the real 7->15 migration chain (the actual
+registered `Migration` objects, made `@VisibleForTesting` for this -- not duplicated SQL) against
+seed data, and checks data survival, correct defaults for every added column, the tombstone
+backfill (trashed note gets one, active one doesn't), the FTS index being populated from the
+migrated data, and the `activeState` index existing. `NotesFtsConsistencyTest` covers the FTS
+index staying in sync through insert/update/trash/restore/permanently-delete, plus
+`PRAGMA integrity_check` after a heavier 30-note mutation sequence.
+
+**Deferred, and why**: testing the plaintext-to-SQLCipher migration itself
+(`migratePlaintextDatabaseIfNeeded`) would need resetting `AppDatabase`'s static singleton
+instance mid-process -- every other test in the same instrumentation run shares that same
+singleton, and this overhaul has already spent real time this session chasing exactly this class
+of shared-static-state isolation bug (Session 8's Round 5). Not worth the risk for one test;
+documented as a known gap in `TESTING.md` instead of silently skipped.
+
+**Suite**: 86 unit + 109 instrumented, both green.
+
 ## Session 9 — Test strategy overhaul, Phase 2: the unit-logic layer (2026-11-01)
 
 Continuation of Session 8's mission, moving from Phase 1 (instrumented coverage gaps) to Phase 2
