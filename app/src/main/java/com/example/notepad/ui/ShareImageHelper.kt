@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Toast
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.FileProvider
 import com.example.notepad.R
 import com.example.notepad.data.ChecklistItem
@@ -43,8 +44,11 @@ object ShareImageHelper {
     }
 
     /** Inflates the card layout off-screen, measures/lays it out by hand (it's never attached to
-     *  a real window), and draws it into a same-size [Bitmap]. */
-    private fun renderToBitmap(context: Context, note: Note): Bitmap? {
+     *  a real window), and draws it into a same-size [Bitmap]. Not private: [ShareImageHelperTest]
+     *  calls this directly instead of [share] itself, which launches a real system share sheet
+     *  Espresso has no way to dismiss. */
+    @VisibleForTesting
+    fun renderToBitmap(context: Context, note: Note): Bitmap? {
         val binding = ShareNoteCardBinding.inflate(LayoutInflater.from(context))
         val root = binding.root
 
@@ -87,7 +91,8 @@ object ShareImageHelper {
     /** A fresh file per share (timestamped name) rather than overwriting one fixed file, so a
      *  share sheet target that reads the Uri lazily/asynchronously can't ever race a newer share
      *  overwriting the bytes out from under it. */
-    private fun saveToCache(context: Context, bitmap: Bitmap): File? = try {
+    @VisibleForTesting
+    fun saveToCache(context: Context, bitmap: Bitmap): File? = try {
         val dir = File(context.cacheDir, "shared_images").apply { mkdirs() }
         val file = File(dir, "note_${System.currentTimeMillis()}.png")
         FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
