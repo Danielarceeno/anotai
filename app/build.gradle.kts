@@ -128,4 +128,7 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-contrib:3.6.1") {
         exclude(group = "org.checkerframework", module = "checker")
     }
+    // For NotificationTapOpensCalendarDayTest: drives the real notification shade, outside this
+    // app's own window, which Espresso (confined to this app's own Activities) can't reach.
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }
