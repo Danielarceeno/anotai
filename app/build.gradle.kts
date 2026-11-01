@@ -66,6 +66,13 @@ android {
         viewBinding = true
     }
 
+    sourceSets {
+        // Room's exported schema JSON (one per version, written by KSP below) needs to be a
+        // readable asset at test time for MigrationTestHelper to validate a migration's result
+        // against the real target-version schema.
+        getByName("androidTest").assets.srcDirs("$projectDir/schemas")
+    }
+
     packaging {
         // google-auth-library-oauth2-http and google-auth-library-credentials (pulled in
         // transitively by the Drive API client) both ship the same META-INF/INDEX.LIST and
@@ -75,6 +82,13 @@ android {
             excludes += "META-INF/DEPENDENCIES"
         }
     }
+}
+
+ksp {
+    // Room writes one <version>.json schema snapshot here per build -- see sourceSets above for
+    // why androidTest needs to read it back, and TESTING.md for why this was off before now
+    // (no historical snapshots exist for versions predating this session's Phase 3 work).
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -134,6 +148,7 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
     androidTestImplementation("androidx.test.espresso:espresso-contrib:3.6.1") {
         exclude(group = "org.checkerframework", module = "checker")
     }

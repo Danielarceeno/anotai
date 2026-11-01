@@ -11,7 +11,7 @@ import kotlinx.coroutines.runBlocking
 import net.sqlcipher.database.SQLiteDatabase
 import net.sqlcipher.database.SupportFactory
 
-@Database(entities = [Note::class, Folder::class, NoteTombstone::class], version = 15, exportSchema = false)
+@Database(entities = [Note::class, Folder::class, NoteTombstone::class], version = 15, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun folderDao(): FolderDao
@@ -26,7 +26,7 @@ abstract class AppDatabase : RoomDatabase() {
          *  SQLite has no built-in UUID generator for a plain column default. Needed so Drive
          *  backup/restore can merge notes per-note (see [Note.uuid]'s doc) instead of only ever
          *  overwriting or restoring the whole set. */
-        private val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+        @androidx.annotation.VisibleForTesting val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE notes ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
                 db.query("SELECT id FROM notes WHERE uuid = ''").use { cursor ->
@@ -44,7 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
         /** Exact-time reminders (see [Note.reminderTimeMinutes]): a plain additive column with a
          *  SQL default, no backfill loop needed since -1 ("all day") is the correct value for
          *  every pre-existing row. */
-        private val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+        @androidx.annotation.VisibleForTesting val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE notes ADD COLUMN reminderTimeMinutes INTEGER NOT NULL DEFAULT -1")
             }
@@ -52,7 +52,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         /** Rich text (bold/italic/underline) support: a plain additive column with a SQL
          *  default, no backfill loop needed since every pre-existing row's body is plain text. */
-        private val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
+        @androidx.annotation.VisibleForTesting val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE notes ADD COLUMN isFormatted INTEGER NOT NULL DEFAULT 0")
             }
@@ -61,7 +61,7 @@ abstract class AppDatabase : RoomDatabase() {
         /** Reminder time range (see [Note.reminderEndTimeMinutes]): a plain additive column with
          *  a SQL default, no backfill loop needed since -1 ("no end", i.e. a single-instant
          *  reminder) is the correct value for every pre-existing row. */
-        private val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
+        @androidx.annotation.VisibleForTesting val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE notes ADD COLUMN reminderEndTimeMinutes INTEGER NOT NULL DEFAULT -1")
             }
@@ -75,7 +75,7 @@ abstract class AppDatabase : RoomDatabase() {
          *  today, but it's never older than the actual deletion, so it only risks losing to a
          *  genuinely newer remote edit -- the same safe-ish fallback a missing timestamp would
          *  get anyway). */
-        private val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
+        @androidx.annotation.VisibleForTesting val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `note_tombstones` (`uuid` TEXT NOT NULL, `deletedAt` INTEGER NOT NULL, PRIMARY KEY(`uuid`))"
@@ -99,7 +99,7 @@ abstract class AppDatabase : RoomDatabase() {
          *  so this is a drop-in index for the existing substring search (see the README/
          *  EVIDENCE.md on why that's the intended behavior) rather than a switch to whole-word
          *  matching. */
-        private val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
+        @androidx.annotation.VisibleForTesting val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) = createNotesFtsIndex(db)
         }
 
@@ -147,7 +147,7 @@ abstract class AppDatabase : RoomDatabase() {
          *  (the main notes list's "every folder" case, the trash screen, export/merge). A fresh
          *  install gets this for free from the `@Entity` annotation; only an existing database
          *  being upgraded needs it created explicitly. */
-        private val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
+        @androidx.annotation.VisibleForTesting val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_activeState ON notes(activeState)")
             }
@@ -157,7 +157,7 @@ abstract class AppDatabase : RoomDatabase() {
          *  [Note.customColorArgb]'s doc) -- both plain additive columns, no backfill needed since
          *  "" / NULL are exactly the correct values ("no password" / "use the palette") for every
          *  pre-existing row. */
-        private val MIGRATION_14_15 = object : androidx.room.migration.Migration(14, 15) {
+        @androidx.annotation.VisibleForTesting val MIGRATION_14_15 = object : androidx.room.migration.Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE notes ADD COLUMN passwordHash TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE notes ADD COLUMN passwordSalt TEXT NOT NULL DEFAULT ''")
