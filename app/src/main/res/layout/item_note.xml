@@ -29,6 +29,15 @@
                 android:textAppearance="?attr/textAppearanceTitleMedium" />
 
             <ImageView
+                android:id="@+id/lockIcon"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginEnd="4dp"
+                android:contentDescription="@string/note_locked"
+                android:src="@android:drawable/ic_lock_lock"
+                android:visibility="gone" />
+
+            <ImageView
                 android:id="@+id/repeatIcon"
                 android:layout_width="18dp"
                 android:layout_height="18dp"

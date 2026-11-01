@@ -65,7 +65,18 @@ data class Note(
      *  collide between two independently-installed devices). Used to match "the same note" when
      *  merging a Google Drive backup against this device's own notes -- see
      *  [com.example.notepad.data.drive.DriveBackupHelper.mergeByUuid]. */
-    val uuid: String = java.util.UUID.randomUUID().toString()
+    val uuid: String = java.util.UUID.randomUUID().toString(),
+    /** PBKDF2 hash (see [com.example.notepad.security.PasswordHasher]) of this note's own
+     *  password, independent of the app-wide PIN ([com.example.notepad.security.SecurityPrefs]).
+     *  Empty means the note has no password. Only the body/checklist is gated on it -- the title
+     *  stays visible everywhere so a locked note is still findable in lists/search. */
+    val passwordHash: String = "",
+    /** Per-note random salt for [passwordHash], hex-encoded. Empty when [passwordHash] is. */
+    val passwordSalt: String = "",
+    /** Free RGB color chosen via the editor's custom color picker, or null to use [colorIndex]
+     *  into the fixed [com.example.notepad.ui.NoteColors] palette instead -- see
+     *  [com.example.notepad.ui.NoteColors.resolveArgb]. */
+    val customColorArgb: Int? = null
 ) {
     companion object {
         const val ACTIVE = 0

@@ -52,19 +52,24 @@ class PagedNoteAdapter(
             onLongClick: (Note) -> Unit
         ) {
             binding.titleView.text = note.title
-            binding.bodyView.text = if (note.type == Note.TYPE_CHECKLIST) {
-                val (done, total) = ChecklistItem.countDone(note.body)
-                "$done/$total done"
-            } else {
-                NoteFormatting.plainText(note.body, note.isFormatted)
+            val isLocked = note.passwordHash.isNotEmpty()
+            binding.lockIcon.visibility = if (isLocked) android.view.View.VISIBLE else android.view.View.GONE
+            binding.bodyView.text = when {
+                isLocked -> binding.root.context.getString(R.string.note_locked_preview)
+                note.type == Note.TYPE_CHECKLIST -> {
+                    val (done, total) = ChecklistItem.countDone(note.body)
+                    "$done/$total done"
+                }
+                else -> NoteFormatting.plainText(note.body, note.isFormatted)
             }
-            val cardColor = binding.root.context.getColor(NoteColors.colorResFor(note.colorIndex))
+            val cardColor = NoteColors.resolveArgb(binding.root.context, note)
             binding.root.setCardBackgroundColor(cardColor)
             val textColor = if (NoteColors.isLight(cardColor)) 0xFF1A1A1A.toInt() else 0xFFF5F5F5.toInt()
             binding.titleView.setTextColor(textColor)
             binding.bodyView.setTextColor(textColor)
             binding.repeatIcon.visibility = if (note.repetition != Note.REPEAT_NONE) android.view.View.VISIBLE else android.view.View.GONE
             binding.repeatIcon.imageTintList = ColorStateList.valueOf(textColor)
+            binding.lockIcon.imageTintList = ColorStateList.valueOf(textColor)
             binding.root.setOnClickListener { onClick(note) }
             binding.root.setOnLongClickListener {
                 it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)

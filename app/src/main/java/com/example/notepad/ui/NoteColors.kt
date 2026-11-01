@@ -1,6 +1,8 @@
 package com.example.notepad.ui
 
+import android.content.Context
 import com.example.notepad.R
+import com.example.notepad.data.Note
 
 /** Shared palette used by both the note list cards and the color picker in the editor. */
 object NoteColors {
@@ -16,6 +18,11 @@ object NoteColors {
     )
 
     fun colorResFor(colorIndex: Int): Int = values[colorIndex.coerceIn(0, values.lastIndex)]
+
+    /** The actual color to render for [note]: its free custom RGB pick if it has one, otherwise
+     *  its [Note.colorIndex] into the fixed palette above. */
+    fun resolveArgb(context: Context, note: Note): Int =
+        note.customColorArgb ?: context.getColor(colorResFor(note.colorIndex))
 
     /** True when [colorInt] is light enough that it needs dark text/icons on top of it. */
     fun isLight(colorInt: Int): Boolean {

@@ -2,9 +2,8 @@ package com.example.notepad.security
 
 import android.content.Context
 import java.security.MessageDigest
-import java.security.SecureRandom
-import javax.crypto.SecretKeyFactory
-import javax.crypto.spec.PBEKeySpec
+import com.example.notepad.security.PasswordHasher.fromHex
+import com.example.notepad.security.PasswordHasher.toHex
 
 /** Whether the app is locked behind a PIN, and the (hashed, never stored in plain text) PIN itself. */
 object SecurityPrefs {
@@ -28,17 +27,16 @@ object SecurityPrefs {
     // A PIN is typically 4-6 digits, i.e. only 10,000-1,000,000 possibilities -- trivial to
     // brute-force offline from an unsalted single-round hash if the SharedPreferences file is
     // ever extracted (rooted device, backup, etc). A per-install random salt plus PBKDF2 with a
-    // deliberately slow iteration count makes precomputation (rainbow tables) useless and brute
-    // force expensive, at a cost of a few milliseconds per legitimate unlock attempt.
-    private const val PBKDF2_ITERATIONS = 120_000
-    private const val KEY_LENGTH_BITS = 256
+    // deliberately slow iteration count (see [PasswordHasher]) makes precomputation (rainbow
+    // tables) useless and brute force expensive, at a cost of a few milliseconds per legitimate
+    // unlock attempt.
 
     fun isPinEnabled(context: Context): Boolean = prefs(context).contains(KEY_PIN_HASH)
 
     fun setPin(context: Context, pin: String) {
-        val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        val salt = PasswordHasher.randomSalt()
         prefs(context).edit()
-            .putString(KEY_PIN_HASH, hash(pin, salt))
+            .putString(KEY_PIN_HASH, PasswordHasher.hash(pin, salt))
             .putString(KEY_PIN_SALT, salt.toHex())
             .apply()
     }
@@ -58,7 +56,7 @@ object SecurityPrefs {
     fun checkPin(context: Context, pin: String): Boolean {
         val saltHex = prefs(context).getString(KEY_PIN_SALT, null) ?: return legacyCheckPin(context, pin)
         val storedHash = prefs(context).getString(KEY_PIN_HASH, null) ?: return false
-        return storedHash == hash(pin, saltHex.fromHex())
+        return PasswordHasher.matches(pin, saltHex.fromHex(), storedHash)
     }
 
     /** Falls back to the pre-salt unsalted-SHA-256 scheme for a PIN set before this upgrade,
@@ -70,15 +68,6 @@ object SecurityPrefs {
         if (matches) setPin(context, pin)
         return matches
     }
-
-    private fun hash(pin: String, salt: ByteArray): String {
-        val spec = PBEKeySpec(pin.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
-        val key = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-        return key.toHex()
-    }
-
-    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
-    private fun String.fromHex(): ByteArray = chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 }

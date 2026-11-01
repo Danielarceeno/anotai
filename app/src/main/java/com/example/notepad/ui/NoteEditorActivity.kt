@@ -27,6 +27,9 @@ import com.example.notepad.data.NoteRepository
 import com.example.notepad.databinding.ActivityNoteEditorBinding
 import com.example.notepad.notification.NoteReminderScheduler
 import com.example.notepad.notification.ReminderNotifier
+import com.example.notepad.security.PasswordHasher
+import com.example.notepad.security.PasswordHasher.fromHex
+import com.example.notepad.security.PasswordHasher.toHex
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
@@ -54,6 +57,12 @@ class NoteEditorActivity : AppCompatActivity() {
      *  true from the moment a save/delete coroutine is launched until it finishes. */
     private var saveInFlight = false
     private var selectedColorIndex = 0
+    /** Free RGB color picked via [openColorPickerDialog], or null to use [selectedColorIndex]
+     *  into the fixed palette instead -- mutually exclusive with it, see [selectCustomColor]. */
+    private var selectedCustomColor: Int? = null
+    private lateinit var customColorButton: ImageView
+    private lateinit var customColorRing: View
+    private var isNoteLocked = false
     private var noteType = Note.TYPE_TEXT
     private var selectedDueDate = 0L
     private var selectedRepetition = Note.REPEAT_NONE
@@ -62,6 +71,8 @@ class NoteEditorActivity : AppCompatActivity() {
     private var selectedReminderEndTimeMinutes = -1
     private var selectedFolderId = 0L
     private var selectedImagePath = ""
+    private var selectedPasswordHash = ""
+    private var selectedPasswordSalt = ""
     private val colorSwatches = mutableListOf<ImageView>()
     private val colorRings = mutableListOf<View>()
 
@@ -143,6 +154,8 @@ class NoteEditorActivity : AppCompatActivity() {
         updateReminderRowText()
         binding.reminderRow.setOnClickListener { openReminderScreen() }
 
+        binding.unlockNoteButton.setOnClickListener { tryUnlockNote() }
+
         val noteId = intent.getLongExtra(EXTRA_NOTE_ID, -1L)
         if (noteId != -1L) {
             lifecycleScope.launch {
@@ -156,17 +169,20 @@ class NoteEditorActivity : AppCompatActivity() {
                 selectedReminderEndTimeMinutes = note?.reminderEndTimeMinutes ?: -1
                 selectedFolderId = note?.folderId ?: 0L
                 selectedImagePath = note?.imagePath ?: ""
+                selectedPasswordHash = note?.passwordHash ?: ""
+                selectedPasswordSalt = note?.passwordSalt ?: ""
+                // While locked, the body/checklist is never loaded into the UI at all (not just
+                // visually hidden) -- so the protected content never sits in a visible EditText
+                // or the accessibility tree until the right password is entered.
+                isNoteLocked = selectedPasswordHash.isNotEmpty()
                 updateFolderRowText()
                 updateImagePreview()
                 applyTypeVisibility()
                 updateReminderRowText()
-                if (noteType == Note.TYPE_CHECKLIST) {
-                    checklistAdapter.setItems(ChecklistItem.parse(note?.body.orEmpty()))
-                } else {
-                    NoteFormatting.load(binding.bodyInput, note?.body.orEmpty(), note?.isFormatted ?: false)
-                }
+                if (!isNoteLocked) loadBodyIntoViews()
                 binding.overflowButton.visibility = View.VISIBLE
-                selectColor(note?.colorIndex ?: lastUsedColorIndex())
+                val customColor = note?.customColorArgb
+                if (customColor != null) selectCustomColor(customColor) else selectColor(note?.colorIndex ?: lastUsedColorIndex())
             }
         } else {
             noteType = intent.getIntExtra(EXTRA_NOTE_TYPE, Note.TYPE_TEXT)
@@ -194,9 +210,47 @@ class NoteEditorActivity : AppCompatActivity() {
     }
 
     private fun applyTypeVisibility() {
+        if (isNoteLocked) {
+            binding.bodyScroll.visibility = View.GONE
+            binding.checklistContainer.visibility = View.GONE
+            binding.lockOverlay.visibility = View.VISIBLE
+            return
+        }
+        binding.lockOverlay.visibility = View.GONE
         val isChecklist = noteType == Note.TYPE_CHECKLIST
         binding.bodyScroll.visibility = if (isChecklist) View.GONE else View.VISIBLE
         binding.checklistContainer.visibility = if (isChecklist) View.VISIBLE else View.GONE
+    }
+
+    private fun loadBodyIntoViews() {
+        if (noteType == Note.TYPE_CHECKLIST) {
+            checklistAdapter.setItems(ChecklistItem.parse(note?.body.orEmpty()))
+        } else {
+            NoteFormatting.load(binding.bodyInput, note?.body.orEmpty(), note?.isFormatted ?: false)
+        }
+    }
+
+    /** Verifies the password typed into [ActivityNoteEditorBinding.notePasswordInput] against
+     *  [selectedPasswordHash]/[selectedPasswordSalt] off the main thread (PBKDF2 at 120k
+     *  iterations is tens of milliseconds -- noticeable jank if run inline with the click). */
+    private fun tryUnlockNote() {
+        val entered = binding.notePasswordInput.text.toString()
+        val hash = selectedPasswordHash
+        val salt = selectedPasswordSalt
+        lifecycleScope.launch {
+            val matches = withContext(Dispatchers.Default) {
+                PasswordHasher.matches(entered, salt.fromHex(), hash)
+            }
+            if (matches) {
+                binding.notePasswordError.visibility = View.GONE
+                binding.notePasswordInput.text?.clear()
+                isNoteLocked = false
+                applyTypeVisibility()
+                loadBodyIntoViews()
+            } else {
+                binding.notePasswordError.visibility = View.VISIBLE
+            }
+        }
     }
 
     private fun openReminderScreen() {
@@ -416,6 +470,33 @@ class NoteEditorActivity : AppCompatActivity() {
             colorRings.add(ring)
             binding.colorRow.addView(cell)
         }
+
+        // Trailing "+" cell: opens the free RGB picker instead of selecting a fixed swatch.
+        // Reuses the same ring/swatch look as the palette cells above so a custom color, once
+        // picked, highlights exactly the same way.
+        val customCell = android.widget.FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(sizePx + ringPaddingPx, sizePx + ringPaddingPx)
+        }
+        customColorRing = View(this).apply {
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            setBackgroundResource(R.drawable.shape_selection_ring)
+            visibility = View.INVISIBLE
+        }
+        customColorButton = ImageView(this).apply {
+            layoutParams = android.widget.FrameLayout.LayoutParams(sizePx, sizePx, android.view.Gravity.CENTER)
+            setBackgroundResource(R.drawable.shape_color_swatch)
+            backgroundTintList = ColorStateList.valueOf(getColor(R.color.app_surface))
+            setImageResource(R.drawable.ic_add_circle)
+            setColorFilter(getColor(R.color.on_surface_variant))
+            setOnClickListener { openColorPickerDialog() }
+        }
+        customCell.addView(customColorRing)
+        customCell.addView(customColorButton)
+        binding.colorRow.addView(customCell)
+
         selectColor(DEFAULT_COLOR_INDEX)
     }
 
@@ -424,11 +505,31 @@ class NoteEditorActivity : AppCompatActivity() {
      *  fixed light text, regardless of which note color is picked. */
     private fun selectColor(index: Int) {
         selectedColorIndex = index
+        selectedCustomColor = null
         colorRings.forEachIndexed { i, ring ->
             ring.visibility = if (i == index) View.VISIBLE else View.INVISIBLE
         }
+        customColorRing.visibility = View.INVISIBLE
+        customColorButton.setImageResource(R.drawable.ic_add_circle)
+        customColorButton.colorFilter = null
+        customColorButton.backgroundTintList = ColorStateList.valueOf(getColor(R.color.app_surface))
 
-        val colorInt = getColor(NoteColors.colorResFor(index))
+        applyHeaderColor(getColor(NoteColors.colorResFor(index)))
+    }
+
+    /** Picked from [openColorPickerDialog] -- mutually exclusive with the fixed palette: clears
+     *  [selectedColorIndex]'s ring and shows the custom pick's own ring/swatch instead. */
+    private fun selectCustomColor(argb: Int) {
+        selectedCustomColor = argb
+        colorRings.forEach { it.visibility = View.INVISIBLE }
+        customColorRing.visibility = View.VISIBLE
+        customColorButton.setImageDrawable(null)
+        customColorButton.backgroundTintList = ColorStateList.valueOf(argb)
+
+        applyHeaderColor(argb)
+    }
+
+    private fun applyHeaderColor(colorInt: Int) {
         val headerTextColor = if (NoteColors.isLight(colorInt)) 0xFF1A1A1A.toInt() else 0xFFF5F5F5.toInt()
         val bodyTextColor = getColor(R.color.note_editor_body_text)
 
@@ -441,6 +542,65 @@ class NoteEditorActivity : AppCompatActivity() {
         updateReminderRowText() // re-tints the badge's calendar icon to match the header text color
     }
 
+    /** RGB picker for a free note color, beyond the 8 fixed palette swatches -- 3 plain sliders
+     *  (0-255 each) kept in sync both ways with a hex input, plus a live preview, no external
+     *  color-picker library needed. */
+    private fun openColorPickerDialog() {
+        val dialogBinding = com.example.notepad.databinding.DialogColorPickerBinding.inflate(layoutInflater)
+        val initial = selectedCustomColor ?: getColor(NoteColors.colorResFor(selectedColorIndex))
+        dialogBinding.redSlider.progress = android.graphics.Color.red(initial)
+        dialogBinding.greenSlider.progress = android.graphics.Color.green(initial)
+        dialogBinding.blueSlider.progress = android.graphics.Color.blue(initial)
+
+        fun currentColor() = android.graphics.Color.rgb(
+            dialogBinding.redSlider.progress, dialogBinding.greenSlider.progress, dialogBinding.blueSlider.progress
+        )
+        fun hexFor(color: Int) = "#%06X".format(0xFFFFFF and color)
+
+        // Both guard flags below exist so updating one input from the other's listener doesn't
+        // bounce straight back and forth between them (slider -> hex -> slider -> ...).
+        var updatingFromHex = false
+        dialogBinding.hexInput.setText(hexFor(initial))
+
+        fun updatePreview() { dialogBinding.colorPreview.setBackgroundColor(currentColor()) }
+        updatePreview()
+
+        val sliderListener = object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                updatePreview()
+                if (fromUser && !updatingFromHex) dialogBinding.hexInput.setText(hexFor(currentColor()))
+            }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
+        }
+        dialogBinding.redSlider.setOnSeekBarChangeListener(sliderListener)
+        dialogBinding.greenSlider.setOnSeekBarChangeListener(sliderListener)
+        dialogBinding.blueSlider.setOnSeekBarChangeListener(sliderListener)
+
+        dialogBinding.hexInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val hex = s?.toString()?.removePrefix("#").orEmpty()
+                if (hex.length != 6 || hex.toIntOrNull(16) == null) return
+                val parsed = try { android.graphics.Color.parseColor("#$hex") } catch (e: IllegalArgumentException) { return }
+                updatingFromHex = true
+                dialogBinding.redSlider.progress = android.graphics.Color.red(parsed)
+                dialogBinding.greenSlider.progress = android.graphics.Color.green(parsed)
+                dialogBinding.blueSlider.progress = android.graphics.Color.blue(parsed)
+                updatingFromHex = false
+                updatePreview()
+            }
+        })
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.custom_color_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.reminder_done) { _, _ -> selectCustomColor(currentColor()) }
+            .setNegativeButton(R.string.reminder_cancel, null)
+            .show()
+    }
+
     private fun toggleColorRow() {
         binding.colorRow.visibility = if (binding.colorRow.visibility == View.VISIBLE) View.GONE else View.VISIBLE
     }
@@ -448,15 +608,67 @@ class NoteEditorActivity : AppCompatActivity() {
     private fun showOverflowMenu() {
         val popup = androidx.appcompat.widget.PopupMenu(this, binding.overflowButton)
         popup.menuInflater.inflate(R.menu.menu_editor, popup.menu)
+        popup.menu.findItem(R.id.action_toggle_password).setTitle(
+            if (selectedPasswordHash.isEmpty()) R.string.action_set_note_password else R.string.action_remove_note_password
+        )
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_delete -> { deleteAndFinish(); true }
                 R.id.action_share -> { shareNote(); true }
                 R.id.action_share_image -> { shareNoteAsImage(); true }
+                R.id.action_toggle_password -> {
+                    if (selectedPasswordHash.isEmpty()) showSetNotePasswordDialog() else showRemoveNotePasswordConfirm()
+                    true
+                }
                 else -> false
             }
         }
         popup.show()
+    }
+
+    /** No date/reminder required, unlike the calendar-driven lock elsewhere in the app -- just a
+     *  password gating this one note's body, independent of the app-wide PIN (see [Note.passwordHash]). */
+    private fun showSetNotePasswordDialog() {
+        val dialogBinding = com.example.notepad.databinding.DialogSetNotePasswordBinding.inflate(layoutInflater)
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.set_note_password_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.reminder_done, null)
+            .setNegativeButton(R.string.reminder_cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val newPassword = dialogBinding.newPasswordInput.text.toString()
+                val confirmPassword = dialogBinding.confirmPasswordInput.text.toString()
+                when {
+                    newPassword.isBlank() -> dialogBinding.passwordErrorView.apply {
+                        visibility = View.VISIBLE; setText(R.string.note_password_empty)
+                    }
+                    newPassword != confirmPassword -> dialogBinding.passwordErrorView.apply {
+                        visibility = View.VISIBLE; setText(R.string.pin_mismatch)
+                    }
+                    else -> {
+                        val salt = PasswordHasher.randomSalt()
+                        selectedPasswordHash = PasswordHasher.hash(newPassword, salt)
+                        selectedPasswordSalt = salt.toHex()
+                        dialog.dismiss()
+                    }
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun showRemoveNotePasswordConfirm() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.action_remove_note_password)
+            .setMessage(R.string.remove_note_password_confirm)
+            .setPositiveButton(R.string.action_remove) { _, _ ->
+                selectedPasswordHash = ""
+                selectedPasswordSalt = ""
+            }
+            .setNegativeButton(R.string.reminder_cancel, null)
+            .show()
     }
 
     override fun onPause() {
@@ -474,7 +686,13 @@ class NoteEditorActivity : AppCompatActivity() {
         val title = binding.titleInput.text.toString()
         val isFormatted: Boolean
         val body: String
-        if (noteType == Note.TYPE_CHECKLIST) {
+        // Locked note: the real body was never loaded into bodyInput/checklistItems (see
+        // loadBodyIntoViews's doc), so reading from those here would silently wipe it with
+        // whatever those views' empty defaults are. Keep the already-persisted body untouched.
+        if (isNoteLocked) {
+            body = note?.body.orEmpty()
+            isFormatted = note?.isFormatted ?: false
+        } else if (noteType == Note.TYPE_CHECKLIST) {
             body = ChecklistItem.serialize(checklistItems)
             isFormatted = false
         } else {
@@ -482,7 +700,8 @@ class NoteEditorActivity : AppCompatActivity() {
             body = text
             isFormatted = formatted
         }
-        val isEmpty = title.isBlank() && (if (noteType == Note.TYPE_CHECKLIST) checklistItems.isEmpty() else binding.bodyInput.text.isBlank())
+        val isEmpty = title.isBlank() &&
+            (if (isNoteLocked) body.isBlank() else if (noteType == Note.TYPE_CHECKLIST) checklistItems.isEmpty() else binding.bodyInput.text.isBlank())
         val existing = note
         // Everything below this point runs on NotepadApplication.applicationScope, not
         // lifecycleScope: this is only ever called from onPause(), and the normal exit path
@@ -513,6 +732,9 @@ class NoteEditorActivity : AppCompatActivity() {
         rememberLastUsedColor(selectedColorIndex)
 
         val colorIndex = selectedColorIndex
+        val customColorArgb = selectedCustomColor
+        val passwordHash = selectedPasswordHash
+        val passwordSalt = selectedPasswordSalt
         val type = noteType
         val dueDate = selectedDueDate
         val repetition = selectedRepetition
@@ -532,6 +754,9 @@ class NoteEditorActivity : AppCompatActivity() {
                         body = body,
                         isFormatted = isFormatted,
                         colorIndex = colorIndex,
+                        customColorArgb = customColorArgb,
+                        passwordHash = passwordHash,
+                        passwordSalt = passwordSalt,
                         type = type,
                         dueDate = dueDate,
                         repetition = repetition,
@@ -549,6 +774,9 @@ class NoteEditorActivity : AppCompatActivity() {
                         body = body,
                         isFormatted = isFormatted,
                         colorIndex = colorIndex,
+                        customColorArgb = customColorArgb,
+                        passwordHash = passwordHash,
+                        passwordSalt = passwordSalt,
                         type = type,
                         dueDate = dueDate,
                         repetition = repetition,

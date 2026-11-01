@@ -9,6 +9,19 @@
     <string name="body_hint">Nota</string>
     <string name="save_and_close">Salvar e fechar</string>
     <string name="note_color">Cor da nota</string>
+    <string name="custom_color_title">Cor personalizada</string>
+    <string name="custom_color_hex_hint">Hex, ex: #FF5733</string>
+    <string name="note_locked">Nota bloqueada</string>
+    <string name="note_locked_preview">Nota protegida</string>
+    <string name="action_set_note_password">Proteger com senha</string>
+    <string name="action_remove_note_password">Remover senha</string>
+    <string name="set_note_password_title">Definir uma senha</string>
+    <string name="enter_note_password_hint">Senha</string>
+    <string name="confirm_note_password_hint">Confirmar senha</string>
+    <string name="note_password_empty">A senha não pode ficar em branco</string>
+    <string name="remove_note_password_confirm">Remover a senha desta nota? Qualquer pessoa que abri-la vai conseguir ler o conteúdo.</string>
+    <string name="unlock_note_hint">Digite a senha</string>
+    <string name="note_password_wrong">Senha incorreta</string>
     <string name="editing_label">Editando</string>
     <string name="menu_delete">Excluir</string>
     <string name="more_options">Mais opções</string>
@@ -104,6 +117,10 @@
     <string name="widget_label_1x1">Anotaí (1x1)</string>
     <string name="widget_label_2x2_list">Anotaí: lista de hoje (2x2)</string>
     <string name="widget_label_2x2_summary">Anotaí: progresso de hoje (2x2)</string>
+    <string name="widget_label_picked_note">Anotaí: uma nota escolhida (1x1)</string>
+    <string name="widget_description_picked_note">Escolha uma nota (com ou sem senha) para fixar na tela inicial</string>
+    <string name="widget_picked_note_config_title">Escolher uma nota</string>
+    <string name="widget_picked_note_missing">Nota removida</string>
 
     <string name="trash_title">Lixeira</string>
     <string name="main_notes_empty">Nenhuma nota ainda — toque em + para adicionar</string>

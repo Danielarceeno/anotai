@@ -36,17 +36,18 @@ import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.launch
 
-/** [dotColorIndices] is capped at 3 (as many dots as the grid cell has room for), one per note
- *  due that day, each tinted to that note's own color -- see [CalendarActivity.renderDays].
- *  [holidayName] is null unless [CalendarPrefs.isHolidaysEnabled]. An overdue, not-done task on
- *  a given day is flagged in [DayNotesDialog] itself (by its own title text, in red), not here on
- *  the grid cell -- see that class's `isOverdue` check. */
+/** [dotColors] is capped at 3 (as many dots as the grid cell has room for), one per note
+ *  due that day, each tinted to that note's own resolved color (its custom RGB pick, if it has
+ *  one, otherwise its palette color -- see [NoteColors.resolveArgb]) -- see
+ *  [CalendarActivity.renderDays]. [holidayName] is null unless [CalendarPrefs.isHolidaysEnabled].
+ *  An overdue, not-done task on a given day is flagged in [DayNotesDialog] itself (by its own
+ *  title text, in red), not here on the grid cell -- see that class's `isOverdue` check. */
 data class CalendarDay(
     val dayOfMonth: Int,
     val dateMillis: Long,
     val inCurrentMonth: Boolean,
     val isToday: Boolean,
-    val dotColorIndices: List<Int>,
+    val dotColors: List<Int>,
     val holidayName: String?
 )
 
@@ -506,7 +507,7 @@ class CalendarActivity : AppCompatActivity() {
                     dateMillis = dayStart,
                     inCurrentMonth = cursor.get(Calendar.MONTH) == displayedMonth,
                     isToday = dayStart == todayMillis,
-                    dotColorIndices = notesForDay.map { it.colorIndex }.take(3),
+                    dotColors = notesForDay.map { NoteColors.resolveArgb(this, it) }.take(3),
                     holidayName = if (holidaysEnabled) BrazilianHolidays.nameFor(dayStart) else null
                 )
             )
@@ -542,13 +543,13 @@ class CalendarActivity : AppCompatActivity() {
             // to that note's own color instead of one fixed color for every note.
             val dots = listOf(cell.dot1, cell.dot2, cell.dot3)
             dots.forEachIndexed { dotIndex, dot ->
-                val colorIndex = day.dotColorIndices.getOrNull(dotIndex)
-                if (colorIndex != null) {
+                val dotColor = day.dotColors.getOrNull(dotIndex)
+                if (dotColor != null) {
                     dot.visibility = View.VISIBLE
                     // mutate() first: the drawable's constant state is otherwise shared across
                     // every dot inflated from the same @drawable/shape_dot resource, so without
                     // it tinting one dot would tint all of them.
-                    dot.background.mutate().setTint(getColor(NoteColors.colorResFor(colorIndex)))
+                    dot.background.mutate().setTint(dotColor)
                 } else {
                     dot.visibility = View.INVISIBLE
                 }

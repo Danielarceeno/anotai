@@ -73,17 +73,17 @@ private class TodayNotesRemoteViewsFactory(
         val views = RemoteViews(context.packageName, R.layout.widget_today_notes_item)
 
         val label = note.title.ifBlank {
-            if (note.type == Note.TYPE_CHECKLIST) {
-                context.getString(R.string.note_type_checklist)
-            } else {
-                com.example.notepad.ui.NoteFormatting.plainText(note.body, note.isFormatted).take(40)
+            when {
+                note.passwordHash.isNotEmpty() -> context.getString(R.string.note_locked_preview)
+                note.type == Note.TYPE_CHECKLIST -> context.getString(R.string.note_type_checklist)
+                else -> com.example.notepad.ui.NoteFormatting.plainText(note.body, note.isFormatted).take(40)
             }
         }
         views.setTextViewText(R.id.itemTitle, label)
         views.setInt(
             R.id.itemDot,
             "setColorFilter",
-            context.getColor(com.example.notepad.ui.NoteColors.colorResFor(note.colorIndex))
+            com.example.notepad.ui.NoteColors.resolveArgb(context, note)
         )
 
         // Opens that day's dialog (same as tapping it on the calendar grid), not straight into

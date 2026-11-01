@@ -11,7 +11,7 @@ import kotlinx.coroutines.runBlocking
 import net.sqlcipher.database.SQLiteDatabase
 import net.sqlcipher.database.SupportFactory
 
-@Database(entities = [Note::class, Folder::class, NoteTombstone::class], version = 14, exportSchema = false)
+@Database(entities = [Note::class, Folder::class, NoteTombstone::class], version = 15, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun folderDao(): FolderDao
@@ -153,6 +153,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Per-note password (see [Note.passwordHash]'s doc) and the free-RGB custom color (see
+         *  [Note.customColorArgb]'s doc) -- both plain additive columns, no backfill needed since
+         *  "" / NULL are exactly the correct values ("no password" / "use the palette") for every
+         *  pre-existing row. */
+        private val MIGRATION_14_15 = object : androidx.room.migration.Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE notes ADD COLUMN passwordHash TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE notes ADD COLUMN passwordSalt TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE notes ADD COLUMN customColorArgb INTEGER DEFAULT NULL")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: buildDatabase(context.applicationContext).also { instance = it }
@@ -169,7 +181,7 @@ abstract class AppDatabase : RoomDatabase() {
 
             return Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
                 .openHelperFactory(SupportFactory(SQLiteDatabase.getBytes(passphrase)))
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .addCallback(ftsCallback)
                 .fallbackToDestructiveMigration()
                 .build()
@@ -198,7 +210,7 @@ abstract class AppDatabase : RoomDatabase() {
                 dbFile.copyTo(context.getDatabasePath(legacyName), overwrite = true)
 
                 val legacyDb = Room.databaseBuilder(context, AppDatabase::class.java, legacyName)
-                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                    .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                     .fallbackToDestructiveMigration()
                     .build()
                 val (folders, notes) = runBlocking {

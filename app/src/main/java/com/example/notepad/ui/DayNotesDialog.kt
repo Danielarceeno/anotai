@@ -83,7 +83,7 @@ object DayNotesDialog {
 
         val rowPadding = (10 * context.resources.displayMetrics.density).toInt()
         val dotSize = (14 * context.resources.displayMetrics.density).toInt()
-        val toggleSize = (22 * context.resources.displayMetrics.density).toInt()
+        val toggleSize = (16 * context.resources.displayMetrics.density).toInt()
         val barWidth = (4 * context.resources.displayMetrics.density).toInt()
 
         notes.forEach { note ->
@@ -96,7 +96,7 @@ object DayNotesDialog {
             }
             val colorBar = android.view.View(context).apply {
                 layoutParams = LinearLayout.LayoutParams(barWidth, LinearLayout.LayoutParams.MATCH_PARENT)
-                setBackgroundColor(context.getColor(NoteColors.colorResFor(note.colorIndex)))
+                setBackgroundColor(NoteColors.resolveArgb(context, note))
             }
 
             val row = LinearLayout(context).apply {
@@ -114,10 +114,10 @@ object DayNotesDialog {
                 // text -- fall back to a plain label instead, since each item now gets its
                 // own checkbox row below.
                 text = note.title.ifBlank {
-                    if (note.type == Note.TYPE_CHECKLIST) {
-                        context.getString(R.string.note_type_checklist)
-                    } else {
-                        NoteFormatting.plainText(note.body, note.isFormatted).take(40)
+                    when {
+                        note.passwordHash.isNotEmpty() -> context.getString(R.string.note_locked_preview)
+                        note.type == Note.TYPE_CHECKLIST -> context.getString(R.string.note_type_checklist)
+                        else -> NoteFormatting.plainText(note.body, note.isFormatted).take(40)
                     }
                 }
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -188,7 +188,7 @@ object DayNotesDialog {
             rowOuter.addView(row)
             binding.notesContainer.addView(rowOuter)
 
-            if (note.type == Note.TYPE_CHECKLIST) {
+            if (note.type == Note.TYPE_CHECKLIST && note.passwordHash.isEmpty()) {
                 addChecklistItemRows(context, binding.notesContainer, note, rowPadding, dotSize, onToggleChecklistItem)
             }
         }

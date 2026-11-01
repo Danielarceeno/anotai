@@ -268,4 +268,53 @@
 
     </LinearLayout>
 
+    <!-- Shown instead of bodyScroll/checklistContainer when the note has its own password (see
+         Note.passwordHash). The body is never loaded into either of those views until this is
+         passed; only the title (above, in the toolbar) stays visible. -->
+    <LinearLayout
+        android:id="@+id/lockOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingHorizontal="32dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginBottom="16dp"
+            android:contentDescription="@string/note_locked"
+            android:src="@android:drawable/ic_lock_lock"
+            app:tint="@color/on_surface_variant" />
+
+        <EditText
+            android:id="@+id/notePasswordInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/unlock_note_hint"
+            android:importantForAutofill="no"
+            android:inputType="textPassword"
+            android:textColor="@color/note_editor_body_text"
+            android:textColorHint="@color/note_editor_body_hint" />
+
+        <TextView
+            android:id="@+id/notePasswordError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/note_password_wrong"
+            android:textColor="#E7473C"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/unlockNoteButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/unlock_action" />
+
+    </LinearLayout>
+
 </LinearLayout>

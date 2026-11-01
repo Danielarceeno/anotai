@@ -72,13 +72,17 @@ class NoteAdapter(
             onLongClick: (Note) -> Unit
         ) {
             binding.titleView.text = highlighted(note.title, highlight)
-            binding.bodyView.text = if (note.type == Note.TYPE_CHECKLIST) {
-                val (done, total) = ChecklistItem.countDone(note.body)
-                "$done/$total done"
-            } else {
-                highlighted(NoteFormatting.plainText(note.body, note.isFormatted), highlight)
+            val isLocked = note.passwordHash.isNotEmpty()
+            binding.lockIcon.visibility = if (isLocked) View.VISIBLE else View.GONE
+            binding.bodyView.text = when {
+                isLocked -> binding.root.context.getString(com.example.notepad.R.string.note_locked_preview)
+                note.type == Note.TYPE_CHECKLIST -> {
+                    val (done, total) = ChecklistItem.countDone(note.body)
+                    "$done/$total done"
+                }
+                else -> highlighted(NoteFormatting.plainText(note.body, note.isFormatted), highlight)
             }
-            val cardColor = binding.root.context.getColor(NoteColors.colorResFor(note.colorIndex))
+            val cardColor = NoteColors.resolveArgb(binding.root.context, note)
             binding.root.setCardBackgroundColor(cardColor)
             // Note cards keep the same vivid palette regardless of app theme (see
             // NoteColors), so text color must adapt to each card's own color
@@ -89,6 +93,7 @@ class NoteAdapter(
             binding.bodyView.setTextColor(textColor)
             binding.repeatIcon.visibility = if (note.repetition != Note.REPEAT_NONE) View.VISIBLE else View.GONE
             binding.repeatIcon.imageTintList = ColorStateList.valueOf(textColor)
+            binding.lockIcon.imageTintList = ColorStateList.valueOf(textColor)
             binding.root.setOnClickListener { onClick(note) }
             binding.root.setOnLongClickListener {
                 it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)

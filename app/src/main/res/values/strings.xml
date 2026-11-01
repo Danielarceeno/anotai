@@ -9,6 +9,19 @@
     <string name="body_hint">Note</string>
     <string name="save_and_close">Save and close</string>
     <string name="note_color">Note color</string>
+    <string name="custom_color_title">Custom color</string>
+    <string name="custom_color_hex_hint">Hex, e.g. #FF5733</string>
+    <string name="note_locked">Locked note</string>
+    <string name="note_locked_preview">Protected note</string>
+    <string name="action_set_note_password">Protect with password</string>
+    <string name="action_remove_note_password">Remove password</string>
+    <string name="set_note_password_title">Set a password</string>
+    <string name="enter_note_password_hint">Password</string>
+    <string name="confirm_note_password_hint">Confirm password</string>
+    <string name="note_password_empty">Password can\'t be empty</string>
+    <string name="remove_note_password_confirm">Remove this note\'s password? Anyone who opens it will be able to read it.</string>
+    <string name="unlock_note_hint">Enter password</string>
+    <string name="note_password_wrong">Wrong password</string>
     <string name="editing_label">Editing</string>
     <string name="menu_delete">Delete</string>
     <string name="more_options">More options</string>
@@ -104,6 +117,10 @@
     <string name="widget_label_1x1">Anotaí (1x1)</string>
     <string name="widget_label_2x2_list">Anotaí: today\'s list (2x2)</string>
     <string name="widget_label_2x2_summary">Anotaí: today\'s progress (2x2)</string>
+    <string name="widget_label_picked_note">Anotaí: a chosen note (1x1)</string>
+    <string name="widget_description_picked_note">Pick one note (with or without a password) to pin to the home screen</string>
+    <string name="widget_picked_note_config_title">Choose a note</string>
+    <string name="widget_picked_note_missing">Note removed</string>
 
     <string name="trash_title">Trash</string>
     <string name="main_notes_empty">No notes yet — tap + to add one</string>

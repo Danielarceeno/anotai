@@ -4,5 +4,5 @@
     <solid android:color="@color/note_toggle_pending" />
     <!-- A CompoundButton's buttonDrawable needs an intrinsic size to draw at all:
          without this it silently renders nothing. -->
-    <size android:width="22dp" android:height="22dp" />
+    <size android:width="16dp" android:height="16dp" />
 </shape>

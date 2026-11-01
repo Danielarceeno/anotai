@@ -31,6 +31,9 @@ object BackupHelper {
                     put("imagePath", note.imagePath)
                     put("modifiedDate", note.modifiedDate)
                     put("uuid", note.uuid)
+                    put("passwordHash", note.passwordHash)
+                    put("passwordSalt", note.passwordSalt)
+                    put("customColorArgb", note.customColorArgb ?: JSONObject.NULL)
                 }
             )
         }
@@ -62,7 +65,10 @@ object BackupHelper {
                 // Older backups (pre-merge support) won't have a uuid; give each such note its
                 // own random one rather than leaving it blank, so it merges as "new" instead of
                 // every pre-upgrade note colliding on the same empty-string uuid.
-                uuid = obj.optString("uuid").ifBlank { java.util.UUID.randomUUID().toString() }
+                uuid = obj.optString("uuid").ifBlank { java.util.UUID.randomUUID().toString() },
+                passwordHash = obj.optString("passwordHash", ""),
+                passwordSalt = obj.optString("passwordSalt", ""),
+                customColorArgb = if (obj.isNull("customColorArgb")) null else obj.optInt("customColorArgb")
             )
         }
     } catch (e: Exception) {

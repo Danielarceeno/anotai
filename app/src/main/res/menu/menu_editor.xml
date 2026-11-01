@@ -11,6 +11,10 @@
         android:title="@string/action_share_image"
         app:showAsAction="never" />
     <item
+        android:id="@+id/action_toggle_password"
+        android:title="@string/action_set_note_password"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_delete"
         android:icon="@android:drawable/ic_menu_delete"
         android:title="@string/menu_delete"

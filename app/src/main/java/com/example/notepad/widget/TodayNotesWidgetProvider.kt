@@ -52,9 +52,9 @@ class TodayNotesWidgetProvider : AppWidgetProvider() {
         private const val COMPACT_MAX_WIDTH_DP = 180
         private const val COMPACT_MAX_HEIGHT_DP = 100
         /** Call after any note insert/update/delete so every placed widget refreshes -- the
-         *  resizable widget this class backs, plus its three fixed-size siblings (1x1, a plain
-         *  2x2 list, and a 2x2 "at a glance" summary), each a separately pickable widget rather
-         *  than reachable only by resizing this one. */
+         *  resizable widget this class backs, plus its fixed-size siblings (1x1, a plain
+         *  2x2 list, a 2x2 "at a glance" summary, and the per-widget single-note picker), each a
+         *  separately pickable widget rather than reachable only by resizing this one. */
         fun notifyNotesChanged(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, TodayNotesWidgetProvider::class.java))
@@ -65,6 +65,7 @@ class TodayNotesWidgetProvider : AppWidgetProvider() {
             TodayNotes1x1WidgetProvider.refresh(context)
             TodayNotes2x2WidgetProvider.refresh(context)
             TodayNotesSummaryWidgetProvider.refresh(context)
+            PickedNoteWidgetProvider.refresh(context)
         }
 
         private fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, widgetId: Int) {

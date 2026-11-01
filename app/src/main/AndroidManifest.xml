@@ -99,6 +99,15 @@
             android:name=".ui.LockActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.PickedNoteWidgetConfigActivity"
+            android:exported="true"
+            android:label="@string/widget_picked_note_config_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <receiver
             android:name=".notification.DailyReminderReceiver"
             android:exported="false" />
@@ -170,6 +179,20 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_today_summary_2x2_info" />
+        </receiver>
+
+        <!-- A 1x1 widget pointing at one specific, user-chosen note (password-protected or not)
+             per placed instance; see PickedNoteWidgetConfigActivity/PickedNoteWidgetProvider. -->
+        <receiver
+            android:name=".widget.PickedNoteWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_label_picked_note">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_picked_note_info" />
         </receiver>
 
         <service
