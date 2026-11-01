@@ -17,9 +17,10 @@ import com.example.notepad.ui.SettingsActivity
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
+import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 
 /**
@@ -29,17 +30,20 @@ import org.junit.runner.RunWith
  * `SettingsChangeAndRemovePinTest` for the change/remove flows, which need one already set
  * *before* `SettingsActivity` launches (its `onCreate` reads [SecurityPrefs.isPinEnabled] once,
  * to decide `pinLockSwitch`'s initial state and whether `changePinRow`/`autoLockRow` show at all).
+ *
+ * [TestPrereqs.resetAppState] runs via [RuleChain], *before* the Activity launches, not from a
+ * plain `@Before` -- caught on a real full-suite run: a `@Before` runs after `onCreate` has
+ * already read [SecurityPrefs.isPinEnabled] into `pinLockSwitch`'s initial state, so a PIN left
+ * over from a *different* test class that ran earlier in the same instrumentation process (e.g.
+ * `SettingsChangeAndRemovePinTest`, which sets one directly and never clears it) made the switch
+ * launch already checked -- `openSetPinDialog`'s click then turned it *off* instead of opening
+ * the dialog, and every assertion after that failed for an unrelated reason.
  */
 @RunWith(AndroidJUnit4::class)
 class SettingsSetPinDialogTest {
 
     @get:Rule
-    val activityRule = ActivityScenarioRule(SettingsActivity::class.java)
-
-    @Before
-    fun resetState() {
-        TestPrereqs.resetAppState()
-    }
+    val ruleChain: TestRule = RuleChain.outerRule(TestPrereqs.resetStateRule()).around(ActivityScenarioRule(SettingsActivity::class.java))
 
     private fun openSetPinDialog() {
         // pinLockSwitch sits inside a plain ScrollView, which (unlike an AdapterView-backed
