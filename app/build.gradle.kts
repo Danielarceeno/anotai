@@ -126,6 +126,9 @@ dependencies {
     implementation("com.google.http-client:google-http-client-gson:1.45.0")
 
     testImplementation("junit:junit:4.13.2")
+    // Pure JVM, no Android/SQLCipher conflict -- see TESTING.md's "Phase 2 tooling evaluation"
+    // for why this is the one new test dependency this session added (Robolectric/MockK weren't).
+    testImplementation("io.kotest:kotest-property-jvm:5.9.1")
 
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
