@@ -61,6 +61,21 @@ class LockGuardedActivityTest {
         return found
     }
 
+    /** `startActivity`/`finish()` called from inside `onResume()` don't preempt that same
+     *  `onResume()` call -- the activity that called them still fully reaches RESUMED first, and
+     *  the actual transition to the new activity is only processed afterward. A single immediate
+     *  check right after `moveToState`/`waitForIdleSync` can race that (the same gap
+     *  `SecurityLockFlowTest` already documented for its own, similar check), so this polls
+     *  instead -- no `Thread.sleep`, just `waitForIdleSync` in a loop with a timeout. */
+    private fun pollUntilResumed(expected: Class<out Activity>, timeoutMs: Long = 5000): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (expected.isInstance(currentlyResumedActivity())) return true
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        }
+        return expected.isInstance(currentlyResumedActivity())
+    }
+
     @Test
     fun launchingSearchActivityDirectly_whilePinLocked_opensTheLockScreenInstead() {
         // Simulates the real exploit: an explicit Intent straight at the exported SearchActivity,
@@ -73,10 +88,9 @@ class LockGuardedActivityTest {
 
         val intent = Intent(context, SearchActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         ActivityScenario.launch<SearchActivity>(intent).use {
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
             assertTrue(
                 "SearchActivity must redirect to LockActivity instead of showing notes when locked",
-                currentlyResumedActivity() is LockActivity
+                pollUntilResumed(LockActivity::class.java)
             )
         }
     }
@@ -102,11 +116,10 @@ class LockGuardedActivityTest {
             assertTrue(LockState.isLocked(context))
             scenario.moveToState(Lifecycle.State.STARTED)
             scenario.moveToState(Lifecycle.State.RESUMED)
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
 
             assertTrue(
                 "returning to an already-open note after the auto-lock window elapsed must show the lock screen",
-                currentlyResumedActivity() is LockActivity
+                pollUntilResumed(LockActivity::class.java)
             )
         }
     }

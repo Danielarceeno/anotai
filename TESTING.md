@@ -91,6 +91,7 @@ library).
 | **`DriveBackupWorkerTest`** *(new, Fase 5)* | `DriveBackupWorker.doWork()` via `TestListenableWorkerBuilder`: nobody signed in to Drive succeeds without attempting a sync (real, no seam needed); a successful sync succeeds; a failed sync asks WorkManager to retry |
 | **`DriveBackupScheduleTest`** *(new, Fase 5)* | `schedulePeriodicBackup`/`triggerImmediateBackup` actually enqueue the unique work request they document enqueueing (via the real, test-mode `WorkManager`), including the network constraint and `triggerImmediateBackup`'s replace-not-stack behavior when called repeatedly |
 | **`LockGuardedActivityTest`** *(new, Fase 6)* | Regression guard for the app-wide PIN lock bypass (see Session 13's bug writeup below): launching the exported `SearchActivity` directly while locked opens the lock screen instead of showing notes; an already-open `NoteEditorActivity` locks on the next `onResume` once the auto-lock window elapses, not just on a fresh launch |
+| **`DatabaseEncryptionAtRestTest`** *(new, Fase 6)* | The real on-disk SQLCipher database file can't be opened or queried by a plain, unencrypted SQLite reader; a note's plaintext title/body never show up as raw bytes in that file (checked after a forced WAL checkpoint); the DB passphrase itself never appears in plain text in its own (`EncryptedSharedPreferences`-backed) prefs file |
 
 ### Known gaps (not covered, and why)
 

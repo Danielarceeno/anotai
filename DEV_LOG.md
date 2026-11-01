@@ -57,6 +57,29 @@ test touching it would have hit the same leak.
 
 Full suite green after both fixes (131 tests).
 
+Continued Fase 6 with `DatabaseEncryptionAtRestTest`: the real on-disk SQLCipher file rejects a
+plain `android.database.sqlite.SQLiteDatabase` reader (confirmed by forcing an actual query, not
+just `openDatabase()` -- that alone can succeed regardless, format validation is lazy and only
+happens on first real read), a note's plaintext title/body never appear as raw bytes in the file
+(checked after a forced `PRAGMA wal_checkpoint(FULL)`, since WAL batches writes before they land
+in the main file), and the DB passphrase itself never appears in plain text in its own
+`EncryptedSharedPreferences`-backed prefs file. All passed first try -- no bug here.
+
+Also chased down a flaky `LockGuardedActivityTest` assertion: `startActivity`/`finish()` called
+from inside `onResume()` don't preempt that same `onResume()` call -- the Activity that called
+them still fully reaches RESUMED first, and the system only processes the actual transition to
+the new Activity afterward. A single immediate check right after `waitForIdleSync()` could still
+race that gap (the exact same class of timing issue `SecurityLockFlowTest` already documented for
+its own, similar check) -- failed intermittently in full-suite runs, passed every time run alone
+or in a small group, which is what gave it away. Fixed with a short poll-with-timeout instead of
+one check (no `Thread.sleep`).
+
+Also recovered from two separate emulator/system crashes mid-run this session (`cmd: Can't find
+service: package` once, a `FinalizerWatchdogDaemon` `HardwareRenderer` timeout another time, plus
+one background Gradle run killed outright by the host for low system memory) -- same recovery
+each time: `./gradlew --stop`, kill `qemu-system`/`emulator`, `adb kill-server`/`start-server`,
+fresh relaunch, re-disable animations. Full suite green after recovery (134 tests, 0 failures).
+
 ---
 
 ## Session 12 — Test strategy overhaul, Phase 5: backup, Drive and sync (2026-11-01)
