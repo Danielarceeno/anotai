@@ -136,13 +136,22 @@ is unchanged.
 
 ## Testing
 
-- `app/src/test/` — JUnit unit tests for pure logic (recurrence math, search-pattern escaping).
-- `app/src/androidTest/` — Espresso end-to-end tests (create a note, sort notes, pick a theme,
-  cold-start the launcher). Run with `./gradlew connectedDebugAndroidTest` against a connected
-  device/emulator. Espresso requires animations to be off on the target device/emulator
-  (Settings → Developer options → turn off Window/Transition/Animator animation scale); some
-  OEM builds block `adb shell settings put global ...` for this, in which case toggle it by hand
-  in Developer options.
+- `app/src/test/` — JUnit unit tests for pure logic (recurrence math, search-pattern escaping,
+  Drive merge logic, Brazilian holidays).
+- `app/src/androidTest/` — Espresso/Room/WorkManager instrumented tests (the bulk of this
+  project's coverage, deliberately — see `docs/TEST_STRATEGY.md`). Run with
+  `./gradlew connectedDebugAndroidTest` against a connected device/emulator. Espresso requires
+  animations to be off on the target device/emulator (Settings → Developer options → turn off
+  Window/Transition/Animator animation scale); some OEM builds block
+  `adb shell settings put global ...` for this, in which case toggle it by hand in Developer
+  options.
+- **`TESTING.md`** — full coverage tables, known gaps and why, how to run each layer, and a
+  checklist for adding a new test. **`docs/TEST_STRATEGY.md`** — the short version: the testing
+  pyramid this project actually follows and the Definition of Done for a change.
+  **`docs/MANUAL_TEST_CHECKLIST.md`** — what's deliberately not automated (real Drive sync
+  between two devices, placing a home-screen widget, real biometrics, ...). **`DEV_LOG.md`** —
+  session-by-session history of bugs found and decisions made, for the "why" behind a specific
+  test.
 
 ## Security & performance
 

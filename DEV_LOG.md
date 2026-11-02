@@ -6,6 +6,50 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 17 — Test strategy overhaul, Phase 10: documentation and process (2026-11-02)
+
+Final phase of the Sessions 8-17 test-strategy overhaul. Pure documentation, no code changes.
+
+- **`TESTING.md`**: new "How to add a new test" section, consolidating every lesson from
+  Sessions 8-16 (seed-before-launch, `.use { }`, main-thread-only calls needing `runOnMainSync`,
+  `RuleChain` ordering, no `Thread.sleep`, the `typeText`+`pressImeActionButton` truncation trap,
+  `*Prefs` state leaking across tests, `AccessibilityChecks`'s missing `disable()`,
+  `StrictMode.ThreadPolicy` being per-thread, `getSharedPreferences()`'s inherent disk stat, and
+  the emulator-corruption recovery steps) into one reference checklist instead of it only living
+  scattered across past session writeups.
+- **`docs/TEST_STRATEGY.md`** (new): the testing pyramid this project actually follows (instrumented-
+  heavy, not a textbook unit-heavy split, because the real risk lives in Room-on-SQLCipher and
+  Activity lifecycle, which unit tests can't exercise honestly) and the Definition of Done for a
+  change here (regression test proven red-before-green, testability seams listed separately, full
+  suite green, no new silent flaky test, coverage floors held).
+- **`docs/MANUAL_TEST_CHECKLIST.md`** (new): what this project doesn't try to automate at all --
+  real widget placement/resizing, real two-device Google Drive sync, real biometric hardware,
+  aggressive-battery-OEM behavior, upgrading over an old installed version, the e-ink/restrictive-
+  OEM manual-only environment (per the mission's own instruction), and the Android 13+
+  notification-permission *prompt itself* (every instrumented test grants it up front via
+  `GrantPermissionRule` specifically to avoid blocking Espresso, so the real first-run prompt flow
+  has zero automated coverage).
+- **`.github/PULL_REQUEST_TEMPLATE.md`** (new): a testing checklist mirroring the Definition of
+  Done above, plus a spot to call out any testability seam explicitly.
+- **`README.md`**'s Testing section updated to point at all of the above instead of just
+  describing `app/src/test`/`app/src/androidTest` on their own.
+
+### Where the whole mission (Sessions 8-17) landed
+
+Real bugs found and fixed, each with a regression test proven red-before-green: a duplicate-note-
+on-rotation bug (Session 11), an app-wide PIN lock bypass including a complete external-app
+exploit via the exported `SearchActivity` (Session 13), 3 accessibility touch targets below 48dp
+(Session 15), and (from the earlier Sessions 8-10, before this summary's own detail) a DST
+day-loss bug in `RecurrenceUtils` and the historical duplicate-save-on-double-trigger bug. One
+finding reported and explicitly *not* fixed as a bug (`Context.getSharedPreferences()`'s own
+disk-stat behavior, inherent to the platform). Coverage baseline established at 57% overall with
+per-package floors enforced. CI extended with coverage upload, AVD caching, a nightly API matrix,
+and a weekly dependency scan -- the one piece of this whole mission that couldn't be verified
+end-to-end in this environment (no GitHub Actions runner available locally), flagged honestly
+rather than presented as tested.
+
+---
+
 ## Session 14 — Test strategy overhaul, Phase 7: performance (2026-11-01)
 
 Covered the feasible Fase 7 items; evaluated and deferred Macrobenchmark/Baseline Profile (own

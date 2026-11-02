@@ -381,6 +381,79 @@ directly with no UTC-offset arithmetic to get wrong -- needed core library desug
 real regression test (reverting the fix made `RecurrenceUtilsEdgeCasesTest`'s DST case fail,
 restoring it made it pass again).
 
+## How to add a new test (Fase 10)
+
+Lessons from this mission's own test-strategy overhaul (Sessions 8-16 in `DEV_LOG.md`), as a
+checklist rather than a story -- read the relevant session there for the full account if one of
+these surprises you.
+
+**Before writing it:**
+- A test for a bug fix must go red, then green: write the test against the *unfixed* code first
+  (or revert the fix temporarily) and confirm it fails with the expected message, *then* confirm
+  the fix makes it pass. A test that was never seen failing proves nothing.
+- If writing the test reveals a real app bug (not a bug in the test itself), stop and report it
+  -- root cause, repro, suggested fix -- separately from applying the fix, even if the fix seems
+  obvious. Don't fix production code just to make a test pass without understanding why it failed.
+- A production-code change made only to let a test reach something otherwise untestable (a
+  testability seam -- an injected clock/dispatcher, a `@VisibleForTesting` visibility bump, a
+  nullable test-only hook) is fine, but list and justify it separately from any actual behavior
+  fix in the same change -- don't bury one inside the other.
+
+**Writing it (instrumented, `app/src/androidTest/`):**
+- Seed the database *before* launching the Activity under test, not after -- mutating Room once
+  an Activity has already subscribed to a `LiveData`/`Flow` from it races the invalidation
+  tracker. If you must mutate after launch, poll with a timeout for the UI to reflect it instead
+  of asserting immediately.
+- Always `.use { }` an `ActivityScenario.launch(...)`, or let `ActivityScenarioRule` own it --
+  a bare `launch()` leaks the Activity into later tests in the same process.
+- `@Before`/`@After` run on the instrumentation thread, not the main thread. Any call that
+  touches UI or main-thread-only state (`AppCompatDelegate.setDefaultNightMode`,
+  `scenario.recreate()`, installing a `StrictMode.ThreadPolicy` meant for the app's own main
+  thread) needs `InstrumentationRegistry.getInstrumentation().runOnMainSync { }`.
+- A plain `@Before` runs *after* `ActivityScenarioRule`/`GrantPermissionRule` have already done
+  their thing -- if state needs resetting (or a permission granted) *before* the Activity
+  launches, use `RuleChain.outerRule(TestPrereqs.resetStateRule()).around(activityRule)`
+  (or similar), not a `@Before` method.
+- No `Thread.sleep`, ever. Use `IdlingResource`/`CountingIdlingResource` for a specific
+  known-slow operation, `InstrumentationRegistry.getInstrumentation().waitForIdleSync()` for the
+  main thread settling, a `pollUntil...(timeoutMs)`-style loop (see `NoteEditorRotationTest`'s
+  `pollUntilResumed` for the pattern) for anything else, or `runBlocking` + `withTimeout` for
+  suspend code.
+- Chaining `typeText(...)` directly into `pressImeActionButton()` (or another `ViewAction`) in
+  the *same* `perform()` call can fire the second action before the first one's last character
+  actually committed -- split into separate `perform()` calls if you see characters silently
+  missing.
+- Any `*Prefs`-style singleton value a test changes (`SecurityPrefs.setAutoLockMinutes`, a theme,
+  a feature toggle, ...) that isn't already covered by `TestPrereqs.resetAppState()` needs
+  restoring in that test's own `@After` -- otherwise it leaks into every later test in the same
+  instrumentation run. If more than one test is likely to touch it, add it to
+  `TestPrereqs.resetAppState()` itself instead of repeating the restore everywhere.
+- Notifications and `PendingIntent`s are real OS state that outlives a single test -- cancel them
+  in the shared reset, not per-test.
+- Animations must be off on the device/emulator for Espresso (`Settings > Developer options`, or
+  `adb shell settings put global *_animation_scale 0`) -- `TestPrereqs`/CI already handle this,
+  but a fresh local emulator needs it set once by hand.
+- `adb shell input swipe` needs a short duration (~150ms) to register as a fling, not a slow drag.
+- `AccessibilityChecks.enable()` has no `disable()` -- once called, it stays enabled for the rest
+  of the test *process*, silently checking every other test class that happens to run afterward.
+  Keep any test that enables it in its own dedicated class, excluded from the routine full-suite
+  command (see "Running the suite" above), not mixed into the regular suite.
+- `StrictMode.ThreadPolicy` is per-thread -- installing one from the test's own (instrumentation)
+  thread checks nothing real; it has to be installed on the main thread the Activity actually
+  runs on.
+- `Context.getSharedPreferences()` does a real disk `stat()` on *every* call, not just the first
+  -- inherent to the platform API, not a bug to chase with `StrictMode.detectDiskReads()`.
+
+**Verifying it:**
+- Run the new test alone first, then the full suite (`notClass=...AccessibilityChecksTest`, see
+  "Running the suite") -- a test that passes alone but fails (or makes something *else* fail) in
+  the full run almost always means it mutated shared state another test depends on.
+- If the emulator itself starts failing unrelated tests mid-run (`cmd: Can't find service:
+  package`, `INSTRUMENTATION_ABORTED: System has crashed`, a `HardwareRenderer`/
+  `FinalizerWatchdogDaemon` timeout) -- that's the emulator corrupting under load, not your test:
+  `./gradlew --stop`, kill `qemu-system`/`emulator`, `adb kill-server`/`start-server`, relaunch
+  fresh, re-disable animations, then rerun.
+
 ## CI: why `instrumented-tests` was failing (resolved)
 
 Couldn't inspect the actual GitHub Actions run at first: the repo was private and the `gh` CLI
