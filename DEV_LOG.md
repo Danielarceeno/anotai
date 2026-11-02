@@ -6,6 +6,25 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 18 — Remove LeakCanary (2026-11-02)
+
+Installing the debug build to a physical device showed an extra "Leaks" launcher icon alongside
+Anotaí's own -- LeakCanary's self-installing artifact (Fase 7, see `TESTING.md`) registers its own
+activity-alias for this inside the app's package. Removed at the user's request:
+
+- **`app/build.gradle.kts`**: dropped the `debugImplementation("com.squareup.leakcanary:
+  leakcanary-android:2.14")` line and its explanatory comment.
+- **`TESTING.md`**: marked the "LeakCanary (Fase 7)" section as removed, explained why, and added
+  "no automatic memory-leak detection" to "Known gaps."
+- Rebuilt (`./gradlew assembleDebug`) and reinstalled on the device; confirmed no leak-related
+  package remains (`adb shell pm list packages | grep -i leak` returns nothing).
+
+Trade-off worth knowing: automatic leak detection during instrumented tests is gone along with the
+icon. If it's ever wanted back without the extra launcher icon, `leakcanary-object-watcher-android`
+alone (no UI) is the option to evaluate first.
+
+---
+
 ## Session 17 — Test strategy overhaul, Phase 10: documentation and process (2026-11-02)
 
 Final phase of the Sessions 8-17 test-strategy overhaul. Pure documentation, no code changes.

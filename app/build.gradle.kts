@@ -160,15 +160,6 @@ dependencies {
     androidTestImplementation("androidx.room:room-testing:2.6.1")
     androidTestImplementation("androidx.work:work-testing:2.9.1")
 
-    // Per the Fase 7 mission: detects Activity leaks automatically, including during every
-    // instrumented test that already launches one via ActivityScenario -- no dedicated leak
-    // tests needed. Watches destroyed Activities in the background and dumps/analyzes the heap
-    // if one doesn't get garbage-collected (notification + logcat, not a hard test failure --
-    // LeakCanary's own instrumented-test-failure integration needs wiring this project doesn't
-    // have verified working; the plain self-installing artifact below needs none at all).
-    // debugImplementation, not androidTestImplementation: it has to be in the actual app process
-    // being tested (where the leaks happen), not just the test APK.
-    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
     androidTestImplementation("androidx.test.espresso:espresso-contrib:3.6.1") {
         exclude(group = "org.checkerframework", module = "checker")
     }

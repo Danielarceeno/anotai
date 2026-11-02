@@ -121,18 +121,23 @@ has no `disable()`, so it keeps checking every other test that happens to run af
 same process once enabled), but a much larger, separate audit than this one phase's scope. Not
 triaged or fixed yet; see "Known gaps" below.
 
-### LeakCanary (Fase 7)
+### LeakCanary (Fase 7) -- removed
 
-Added as `debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")` -- no dedicated
-test needed. It self-installs via its own `ContentProvider` and watches every destroyed Activity
-in the background for the whole instrumented test run (every `ActivityScenario`-based test already
-launches and destroys at least one), dumping and analyzing the heap if one doesn't get
-garbage-collected. Reports to Logcat/a notification rather than failing the test outright --
+Was added as `debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")` -- no
+dedicated test needed. It self-installed via its own `ContentProvider` and watched every destroyed
+Activity in the background for the whole instrumented test run (every `ActivityScenario`-based test
+already launches and destroys at least one), dumping and analyzing the heap if one doesn't get
+garbage-collected. Reported to Logcat/a notification rather than failing the test outright --
 LeakCanary's own instrumented-test-failure integration (`leakcanary-android-instrumentation` +
 `FailTestOnLeakRunListener`) was tried first and crashed every single test on startup
 (`IllegalArgumentException: Could not find extra class leakcanary.FailTestOnLeakRunListener`,
 the exact listener class/wiring for that integration not being verified against this exact
-version); reverted to the plain, self-installing artifact instead, which needs no such wiring.
+version); reverted to the plain, self-installing artifact instead, which needed no such wiring.
+
+**Removed afterward** at the user's request: the self-installing artifact adds its own launcher
+icon/activity-alias ("Leaks") alongside the app's on every debug install, which the user didn't
+want on their device. Automatic leak detection during instrumented tests is a known gap again as a
+result -- see "Known gaps" below.
 
 ### Coverage (Fase 9)
 
@@ -233,12 +238,18 @@ target-app wiring) plus a non-minified-but-profileable build variant, and its re
 meaningful compared across *several* runs on a calibrated reference device/emulator -- there's no
 existing CI pipeline or reference device here to calibrate against yet, so a number from one local
 run would be noise, not a baseline worth gating anything on. The lighter-weight items the same
-Fase 7 section actually asks for (no main-thread I/O, FTS5-at-scale timing, leak detection) are
-covered instead by `StrictModeMainThreadIOTest`/`SearchFtsAtScaleTest`/LeakCanary below, without
-taking on a whole new benchmarking module for this project's current size.
+Fase 7 section actually asks for (no main-thread I/O, FTS5-at-scale timing, leak detection) were
+covered instead by `StrictModeMainThreadIOTest`/`SearchFtsAtScaleTest`/LeakCanary, without taking on
+a whole new benchmarking module for this project's current size. LeakCanary was since removed (see
+above), so leak detection is no longer covered.
 
 ### Known gaps (not covered, and why)
 
+- **No automatic memory-leak detection.** LeakCanary (Fase 7) was removed at the user's request
+  because its self-installing artifact adds an extra "Leaks" launcher icon to every debug install.
+  No replacement was wired in; leaks would need to be caught manually (profiler/heap dump) until
+  this is revisited, e.g. with the `leakcanary-object-watcher-android` artifact alone, which has no
+  UI/launcher icon of its own but also no automatic heap analysis.
 - **13 untriaged accessibility violations** across holiday/folder/note-password/PIN-dialog
   screens, surfaced once by accidentally leaving `AccessibilityChecks` enabled for a full-suite
   run (see the Fase 8 section above). Likely more small touch targets, same category as the three
