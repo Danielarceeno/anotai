@@ -6,9 +6,24 @@ on:
   pull_request:
     branches: [main, master]
   workflow_dispatch:
+  schedule:
+    # Nightly: a wider API matrix than every PR needs to pay for on every push.
+    - cron: "0 4 * * *"
+    # Weekly (Mondays): dependency vulnerability scan -- new CVEs land on their own schedule,
+    # not tied to this repo's own commits, so a PR-triggered run would mostly just repeat itself.
+    - cron: "0 5 * * 1"
+
+# Cancels a still-running workflow run for the same branch/PR when a new commit supersedes it --
+# otherwise a quick string of pushes queues up every single intermediate run instead of just the
+# latest, burning runner-minutes on results nobody will look at.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test-and-lint:
+    # Fast, blocks merge: unit tests + lint, no emulator.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
 
     steps:
@@ -50,9 +65,10 @@ jobs:
           retention-days: 7
 
   instrumented-tests:
-    # Separate job from unit tests/lint: the emulator boot + Espresso/Room-on-SQLCipher suite is
-    # much slower and occasionally flakier than those, so it shouldn't hold up that quicker
-    # feedback -- runs in parallel instead of blocking on it.
+    # Blocks merge, but a separate job from unit tests/lint: the emulator boot + Espresso/Room-
+    # on-SQLCipher suite is much slower and occasionally flakier than those, so it shouldn't hold
+    # up that quicker feedback -- runs in parallel instead of blocking on it.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
 
     steps:
@@ -80,9 +96,36 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # AVD snapshot cached across runs (not just the Gradle/SDK caching setup-gradle already
+      # does) -- without this every run re-downloads and cold-boots the whole system image.
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-30-default-x86_64-v1
+
+      - name: Generate AVD snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: pixel_5
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot."
+
       # api-level 30/x86_64/default: well-cached by the action (fast cold start) and comfortably
       # within this app's minSdk 24 / targetSdk 34 range -- doesn't need the Google Play image
-      # since nothing here is tested against Play Services.
+      # since nothing here is tested against Play Services. AccessibilityChecksTest excluded on
+      # purpose -- see TESTING.md's "Running the suite": it leaks AccessibilityChecks' enabled
+      # state into every other test that runs afterward in the same process, since that API has
+      # no disable().
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -90,8 +133,24 @@ jobs:
           target: default
           arch: x86_64
           profile: pixel_5
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest --console=plain
+          script: >
+            ./gradlew connectedDebugAndroidTest --console=plain
+            -Pandroid.testInstrumentationRunnerArguments.notClass=com.example.notepad.AccessibilityChecksTest
+
+      - name: Dump logcat on failure
+        if: failure()
+        run: adb logcat -d > logcat.txt
+
+      - name: Upload logcat
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logcat
+          path: logcat.txt
+          retention-days: 7
 
       - name: Upload instrumented test report
         if: always()
@@ -100,3 +159,110 @@ jobs:
           name: instrumented-test-report
           path: app/build/reports/androidTests/connected/
           retention-days: 7
+
+      - name: Combined coverage report
+        if: always()
+        run: ./gradlew jacocoTestReport --console=plain
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: app/build/reports/jacoco/jacocoTestReport/html/
+          retention-days: 7
+
+  api-matrix:
+    # Nightly only: API 33/34 on top of the PR-blocking job's API 30, same scripts just a wider
+    # version spread -- not worth the extra runner time on every single push.
+    if: github.event_name == 'schedule' && github.event.schedule == '0 4 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [33, 34]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run instrumented tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: default
+          arch: x86_64
+          profile: pixel_5
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: >
+            ./gradlew connectedDebugAndroidTest --console=plain
+            -Pandroid.testInstrumentationRunnerArguments.notClass=com.example.notepad.AccessibilityChecksTest
+
+      - name: Dump logcat on failure
+        if: failure()
+        run: adb logcat -d > logcat-api${{ matrix.api-level }}.txt
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-${{ matrix.api-level }}-failure
+          path: |
+            logcat-api${{ matrix.api-level }}.txt
+            app/build/reports/androidTests/connected/
+          retention-days: 7
+
+  dependency-check:
+    # Weekly only: new CVEs land on their own schedule, not tied to this repo's commits.
+    if: github.event_name == 'schedule' && github.event.schedule == '0 5 * * 1' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "anotai"
+          path: "."
+          format: "HTML"
+
+      - name: Upload dependency-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: reports/
+          retention-days: 30

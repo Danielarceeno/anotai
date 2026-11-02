@@ -4,6 +4,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+    id("jacoco")
 }
 
 // Optional: only present on a machine that's set up to produce a signed release build (see
@@ -46,6 +47,12 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
+        }
+        debug {
+            // Per the Fase 9 mission: instruments both unit and instrumented test runs for
+            // JaCoCo to combine into one coverage report (see the jacocoTestReport task below).
+            enableUnitTestCoverage = true
+            enableAndroidTestCoverage = true
         }
     }
 
@@ -168,4 +175,103 @@ dependencies {
     // For NotificationTapOpensCalendarDayTest: drives the real notification shade, outside this
     // app's own window, which Espresso (confined to this app's own Activities) can't reach.
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+}
+
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+/**
+ * Per the Fase 9 mission: one combined coverage report from both `testDebugUnitTest` (pure-logic
+ * unit tests) and `connectedDebugAndroidTest` (Espresso/Room/instrumented tests) -- most of this
+ * app's actual business logic (RecurrenceUtils, BrazilianHolidays, mergeByUuid, BackupHelper,
+ * escapeLikePattern, ...) only has unit-test coverage, but a lot of what matters (Activities,
+ * NoteRepository against a real encrypted Room DB, DriveBackupHelper.syncNow) is only exercised
+ * by the instrumented suite -- a unit-test-only report would make a huge, well-tested slice of
+ * the app look completely uncovered. Excludes Room/view-binding/KSP-generated code and Android
+ * framework boilerplate (`R.class`, `BuildConfig`, `Manifest`), none of which this project writes
+ * or could usefully raise coverage on. Depends on both test tasks explicitly so `jacocoTestReport`
+ * alone (after a `connectedDebugAndroidTest` run has already produced its own `.ec` file) still
+ * works without re-running the slow instrumented suite every time.
+ */
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn("testDebugUnitTest")
+    group = "Reporting"
+    description = "Combined unit + instrumented test coverage report."
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+
+    val fileFilter = listOf(
+        "**/R.class", "**/R$*.class", "**/BuildConfig.*", "**/Manifest*.*",
+        "**/*Test*.*", "android/**/*.*",
+        "**/*_Impl.*", "**/*_Impl\$*.*", // Room-generated DAO/Database implementations
+        "**/databinding/**", "**/BR.*", // view-binding-generated
+        "**/*\$ViewInjector*.*", "**/*\$ViewBinder*.*"
+    )
+    val debugTree = fileTree("$buildDir/intermediates/javac/debug") { exclude(fileFilter) } +
+        fileTree("$buildDir/tmp/kotlin-classes/debug") { exclude(fileFilter) }
+    val mainSrc = "${project.projectDir}/src/main/java"
+
+    sourceDirectories.setFrom(files(mainSrc))
+    classDirectories.setFrom(files(debugTree))
+    executionData.setFrom(
+        fileTree(buildDir) {
+            include(
+                "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",
+                "outputs/code_coverage/debugAndroidTest/connected/**/*.ec"
+            )
+        }
+    )
+}
+
+/**
+ * Per-package coverage floors instead of one blind global target, per the Fase 9 mission --
+ * pure business logic (`data`, `security`) should stay thoroughly covered; `ui` (Activities,
+ * mostly only reachable through the slower instrumented suite) and `widget` (RemoteViews/
+ * AppWidgetProvider boilerplate, inherently harder to unit-test) get a lower, still-meaningful
+ * floor instead of being held to the same bar. Set a little below this session's actual combined
+ * baseline (57% overall; `data` 81%, `security` 93%, `ui` 54%, `widget` 25%, see `TESTING.md`) so
+ * this is a real regression gate -- catches coverage actually dropping -- not an aspirational
+ * number nobody could pass today.
+ */
+tasks.register<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
+    dependsOn("jacocoTestReport")
+    executionData.setFrom(tasks.named<JacocoReport>("jacocoTestReport").get().executionData)
+    sourceDirectories.setFrom(tasks.named<JacocoReport>("jacocoTestReport").get().sourceDirectories)
+    classDirectories.setFrom(tasks.named<JacocoReport>("jacocoTestReport").get().classDirectories)
+
+    violationRules {
+        rule {
+            element = "PACKAGE"
+            includes = listOf("com.example.notepad.data")
+            limit { counter = "LINE"; minimum = "0.70".toBigDecimal() }
+        }
+        rule {
+            // Drive sync specifically: lower than the rest of `data` (its real baseline is ~59%,
+            // not 70%+) since most of it only runs through DriveSyncNowIntegrationTest's fakes,
+            // not plain unit tests, and the real Drive API client classes themselves are
+            // unreachable from any test here at all (see TESTING.md's known gaps).
+            element = "PACKAGE"
+            includes = listOf("com.example.notepad.data.drive")
+            limit { counter = "LINE"; minimum = "0.55".toBigDecimal() }
+        }
+        rule {
+            element = "PACKAGE"
+            includes = listOf("com.example.notepad.security")
+            limit { counter = "LINE"; minimum = "0.85".toBigDecimal() }
+        }
+        rule {
+            element = "PACKAGE"
+            includes = listOf("com.example.notepad.ui")
+            limit { counter = "LINE"; minimum = "0.45".toBigDecimal() }
+        }
+        rule {
+            element = "PACKAGE"
+            includes = listOf("com.example.notepad.widget")
+            limit { counter = "LINE"; minimum = "0.20".toBigDecimal() }
+        }
+    }
 }

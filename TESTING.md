@@ -134,6 +134,96 @@ LeakCanary's own instrumented-test-failure integration (`leakcanary-android-inst
 the exact listener class/wiring for that integration not being verified against this exact
 version); reverted to the plain, self-installing artifact instead, which needs no such wiring.
 
+### Coverage (Fase 9)
+
+`./gradlew jacocoTestReport` combines `testDebugUnitTest` + `connectedDebugAndroidTest` coverage
+into one report (`app/build/reports/jacoco/jacocoTestReport/html/index.html`) -- a lot of this
+app's actual logic is only unit-tested (business logic) or only instrumented-tested (Activities,
+Room-backed repositories), so either one alone understates real coverage badly. Baseline, this
+session (line coverage): **57% overall** -- `security` 93%, `com.example.notepad` (Application)
+92%, `data` 81%, `data.drive` 59%, `ui` 54%, `notification` 52%, `widget` 25% (RemoteViews/
+AppWidgetProvider boilerplate, inherently harder to exercise from a test).
+
+`./gradlew jacocoTestCoverageVerification` enforces **per-package floors**, not one blind global
+number, set a little below this actual baseline so it's a real regression gate rather than an
+aspirational target nobody could pass today: `data` 70%, `security` 85%, `data.drive` 55%
+(split out from the rest of `data` since its real baseline is lower and the real Drive API
+client classes are entirely untestable here, see "Known gaps"), `ui` 45%, `widget` 20%. Verified
+both halves actually work: lowering `security`'s floor to 99% made the task fail with the exact
+expected message, restoring it to 85% passed again.
+
+### Mutation testing (Fase 9) -- evaluated, not added
+
+Pitest (with the Kotlin/arcmutate plugin the mission names) was evaluated, not added. Two
+reasons: first, without the usual package-registry access this session had for everything else,
+the exact current Pitest/arcmutate Gradle plugin coordinates and their compatibility with this
+project's Kotlin 1.9.24/AGP 8.5.2 pin couldn't be verified before wiring them in -- the LeakCanary
+instrumentation-listener mistake earlier this same mission (Fase 7, `TESTING.md`'s own account)
+is exactly the failure mode of guessing at an unfamiliar tool's exact integration details instead
+of verifying them first, and mutation testing's build-time cost (it recompiles and reruns the
+suite once per surviving mutant) makes a wrong guess here far more expensive to discover and
+unwind than that one was. Second, Pitest's Kotlin support is well known to need careful tuning
+(filtering out compiler-generated null-checks and `when`-exhaustiveness branches that inflate the
+mutant count without testing anything real) to produce a trustworthy score rather than noise --
+not a same-session addition alongside everything else in this phase. `RecurrenceUtils`,
+`DriveBackupHelper.mergeByUuid`, `BrazilianHolidays`, and `escapeLikePattern` (the classes the
+mission names) are already thoroughly edge-case-tested by hand (see Fase 2's own session); a
+mutation score for them is future work, not blocking this phase's own CI/quality-infrastructure
+goals.
+
+### Flaky tests (Fase 9)
+
+Known intermittent failures, confirmed by repeated observation across this mission's sessions
+(not retried-until-green and declared fixed -- see the mission's own "retry only as diagnosis"
+rule):
+
+- **`NoteEditorRotationTest.rotating_afterAddingAChecklistItem_keepsIt_andDoesNotDuplicateTheNote`**
+  -- IME/soft-keyboard timing on this emulator; `typeText` occasionally doesn't fully commit
+  before the next action reads the field. Already split into separate `perform()` calls (Session
+  11's fix for a *different*, related truncation symptom) -- reduced, didn't eliminate, the
+  remaining flake. Observed again, confirmed real (not a one-off), while running the full suite
+  for this phase's own coverage baseline.
+- **`FoldersFlowTest.renamingAFolder_updatesItsRow`**/`creatingAFolder_showsUpInTheList`** --
+  RecyclerView not always reflecting a just-applied change before the very next assertion reads
+  it. Confirmed as transient by rerunning the class alone clean in the same session it failed
+  (Fase 8's own account).
+
+Both are pre-existing environmental/timing flakes, not introduced by any change in this mission --
+left as documented known flakes rather than chased further with more `waitForIdleSync`/polling
+tweaks that previous attempts already showed only partially help.
+
+### CI structure (Fase 9)
+
+`.github/workflows/ci.yml`, on top of the pre-existing `test-and-lint`/`instrumented-tests` jobs:
+
+- `concurrency` group cancels a still-running workflow run for the same branch/PR when a newer
+  commit supersedes it.
+- AVD cached across runs (`actions/cache`, not just Gradle/SDK caching `setup-gradle` already
+  does) -- a cold AVD boot every single run was the slowest part of that job.
+- Logcat dumped and uploaded on instrumented-test failure (`adb logcat -d`), not just the test
+  report.
+- `jacocoTestReport`'s combined coverage report uploaded as its own artifact, always.
+- **New, schedule-triggered jobs** (never run on every push/PR, only nightly/weekly/manual
+  `workflow_dispatch`): `api-matrix` (API 33 + 34 on top of the PR-blocking job's API 30),
+  `dependency-check` (OWASP Dependency-Check, weekly).
+- Action versions already pinned to major-version tags (`@v4`/`@v2`) before this phase; left as
+  is rather than pinning to exact commit SHAs, which is a much stricter convention most projects
+  of this size don't adopt.
+
+**Not verified end-to-end**: unlike everything else in this mission, this workflow file could not
+actually be run anywhere in this environment (no GitHub Actions runner available locally) --
+checked for valid YAML syntax only (via a quick Node/js-yaml parse). The `dependency-check/
+Dependency-Check_Action@main` step in particular is the one piece guessed from memory without
+being able to verify its exact current invocation/output format, the same category of risk the
+LeakCanary mistake above fell into -- flagged here explicitly rather than presented as verified
+working. Recommend a manual `workflow_dispatch` run (or a throwaway branch push) to confirm before
+relying on any of this, especially that one job.
+
+**Branch protection requiring these checks** is a GitHub repository setting
+(Settings -> Branches -> branch protection rules), not something a workflow YAML file can
+configure -- set it up at `github.com/Danielarceeno/anotai/settings/branches` if wanted,
+requiring `test-and-lint` and `instrumented-tests` to pass before merging to `main`.
+
 ### Fase 7 tooling evaluation: Macrobenchmark / Baseline Profile
 
 Per the mission's own instruction to evaluate before adding anything: **not added.** Macrobenchmark

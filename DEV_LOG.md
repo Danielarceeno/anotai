@@ -78,6 +78,41 @@ clean; not something this phase's changes caused.
 
 ---
 
+## Session 16 — Test strategy overhaul, Phase 9: coverage, CI, flaky tests (2026-11-02)
+
+Covered JaCoCo coverage + per-package floors, consolidated the known flaky-test list, and
+extended the CI workflow. Evaluated and deferred Pitest mutation testing (see `TESTING.md`'s own
+account -- the same "verify an unfamiliar tool's exact integration before wiring it in" lesson
+Fase 7's LeakCanary mistake already cost this mission once, applied proactively this time instead
+of after breaking something).
+
+- **JaCoCo**: `jacocoTestReport` (combined unit + instrumented coverage) and
+  `jacocoTestCoverageVerification` (per-package floors, not one blind global number) added to
+  `app/build.gradle.kts`. Baseline: 57% overall line coverage -- `security` 93%, `data` 81%,
+  `ui` 54%, `widget` 25% (lowest, inherently hard to unit-test RemoteViews/AppWidgetProvider
+  boilerplate). Verified the verification task actually enforces its floors, not just reports
+  numbers: temporarily raising `security`'s floor to 99% failed with the exact expected message;
+  restoring it to 85% passed again.
+- **Flaky tests consolidated**: `NoteEditorRotationTest`'s checklist case (IME timing, observed
+  again this session, confirming it's a real recurring flake, not a one-off) and
+  `FoldersFlowTest`'s rename/create cases (RecyclerView update timing, confirmed transient by
+  rerunning the class alone clean). Documented in `TESTING.md` rather than chased further --
+  previous attempts already showed diminishing returns on more polling/waitForIdleSync tweaks.
+- **CI** (`.github/workflows/ci.yml`): `concurrency` cancel-in-progress group, AVD caching,
+  logcat-on-failure upload, coverage report upload, and two new schedule-only jobs (`api-matrix`
+  for API 33/34, `dependency-check` weekly). **Could not be run anywhere in this environment** (no
+  GitHub Actions runner available locally) -- checked for valid YAML syntax only. Flagged the
+  `dependency-check/Dependency-Check_Action` step specifically as unverified (guessed from memory,
+  not confirmed against current docs) rather than presented as tested; recommend a manual
+  `workflow_dispatch` run before relying on it. Branch protection requiring these checks is a
+  GitHub repo setting, not something this file can configure -- documented where to set it.
+
+Full local suite still green throughout (the `debug.enableUnitTestCoverage`/
+`enableAndroidTestCoverage` flags JaCoCo needs didn't change any test's behavior or timing
+meaningfully).
+
+---
+
 ## Session 13 — Test strategy overhaul, Phase 6: app-wide PIN lock bypass (2026-11-01)
 
 Started Fase 6 (security review) with the manifest: every `exported` component, `allowBackup`,
