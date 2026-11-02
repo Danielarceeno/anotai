@@ -20,16 +20,17 @@
 
         <ImageButton
             android:id="@+id/doneButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/save_and_close"
+            android:padding="4dp"
             android:src="@drawable/ic_check" />
 
         <EditText
             android:id="@+id/titleInput"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="48dp"
             android:layout_marginHorizontal="8dp"
             android:layout_weight="1"
             android:background="@drawable/shape_title_input_bg"

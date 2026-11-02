@@ -44,6 +44,40 @@ inherent to the platform" rather than something to fix). Full suite green (137 t
 
 ---
 
+## Session 15 — Test strategy overhaul, Phase 8: accessibility, i18n (2026-11-02)
+
+Covered the feasible Fase 8 items; evaluated and deferred the Gradle Managed Devices compatibility
+matrix and Paparazzi/Roborazzi visual regression (both need infra this project doesn't have
+provisioned yet -- see `TESTING.md`'s known gaps).
+
+- **`AccessibilityChecksTest`** (new): Espresso's built-in `AccessibilityChecks` validator against
+  the app's main flows. Found and fixed 3 real touch targets below the 48dp minimum:
+  `activity_note_editor.xml`'s `titleInput` (40dp) and `doneButton` (40dp x 40dp), and
+  `item_checklist_add.xml`'s `newItemText` (`wrap_content`, ~22dp) -- `minHeight="48dp"` added to
+  the latter rather than a fixed height, so the text's own vertical position doesn't shift.
+- **Real structural lesson, costly one**: `AccessibilityChecks.enable()` has no way to disable
+  itself once called. First attempt wired it into `CalendarActivityTest`/`CreateEditNoteFlowTest`
+  directly via a shared `AccessibilityChecksRule` -- running the resulting full suite once
+  surfaced 13 *new* failures across completely unrelated screens (holidays dialog, folders,
+  note-password unlock, PIN dialogs) that happened to run afterward in the same instrumentation
+  process and had simply never been audited for this. Real signal, but a much bigger separate
+  audit than this one phase's scope (left as a documented known gap, not fixed blind). Reverted
+  those two classes back to plain, and moved the check into one new, explicitly separate
+  `AccessibilityChecksTest` class instead -- documented in `TESTING.md`'s "Running the suite" to
+  be excluded from the routine full-suite command (via `-Pandroid.testInstrumentationRunnerArguments
+  .notClass=...`) and run on its own when its coverage is actually wanted.
+- **i18n**: `lintDebug` found zero `MissingTranslation`/`ExtraTranslation` -- `values-pt` is
+  already fully in sync with `values`. Only 3 `HardcodedText` warnings, all single-letter
+  color-channel labels ("R"/"G"/"B") in the custom color picker -- documented, not worth three
+  one-letter string resources for.
+
+Full suite green afterward (137 tests, `AccessibilityChecksTest` excluded as documented) -- one
+isolated `FoldersFlowTest` failure on the first run turned out to be an unrelated, pre-existing
+timing flake (RecyclerView not yet reflecting a rename), confirmed by rerunning that class alone
+clean; not something this phase's changes caused.
+
+---
+
 ## Session 13 — Test strategy overhaul, Phase 6: app-wide PIN lock bypass (2026-11-01)
 
 Started Fase 6 (security review) with the manifest: every `exported` component, `allowBackup`,
