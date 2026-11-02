@@ -6,6 +6,44 @@ past sessions isn't lost. Newest entries at the top.
 
 ---
 
+## Session 14 — Test strategy overhaul, Phase 7: performance (2026-11-01)
+
+Covered the feasible Fase 7 items; evaluated and deferred Macrobenchmark/Baseline Profile (own
+Gradle module + calibrated reference device needed, not a fit for this project's current CI-less
+setup -- see `TESTING.md`'s tooling-evaluation note).
+
+- **`StrictModeMainThreadIOTest`** (new) + a permanent `StrictMode` check in
+  `NotepadApplication.onCreate()` (debug builds only, via `ApplicationInfo.FLAG_DEBUGGABLE` since
+  `buildFeatures.buildConfig` isn't enabled here, `penaltyLog` not `penaltyDeath` so it's a
+  diagnostic aid, not a crash risk, for every debug/manual session). Found a real StrictMode hit
+  on the first try: `Context.getSharedPreferences()` does its own internal `File.exists()` disk
+  stat on *every* call, not just the first, flagged right at `SecurityPrefs.isPinEnabled` in
+  `CalendarActivity.onCreate`'s very first line. Reported to the user before deciding what to do
+  about it, per this mission's own rule -- concluded (with the user) that this is inherent to the
+  platform API itself and essentially universal across Android apps using `SharedPreferences` the
+  normal way, not a bug this app introduced; fixing it for real would mean every `*Prefs` object
+  caching its own `SharedPreferences` instance, a genuine but separate refactor. Dropped
+  `detectDiskReads()` from both the permanent check and the dedicated test (kept
+  `detectDiskWrites()`/`detectNetwork()`, which are far less expected on the main thread and
+  would still catch something actually worth fixing); the dedicated test now passes clean with a
+  hard `penaltyDeath`.
+- **LeakCanary**, `debugImplementation` only -- see `TESTING.md` for the one wrong turn
+  (`leakcanary-android-instrumentation` + a guessed listener class that doesn't exist in this
+  version, crashing every test on startup) before landing on the plain self-installing artifact.
+- **`SearchFtsAtScaleTest`** (new): 10k notes (bulk-inserted inside one transaction, not through
+  `NoteRepository.insert` one at a time), `EXPLAIN QUERY PLAN` confirming the FTS5 trigram index
+  is actually used (not a full `notes` table scan), and a generous soft time budget (not a hard
+  CI gate -- emulator performance varies too much run to run) that passed with room to spare.
+  First version of the query-plan test asserted the wrong thing (`"SCAN notes_fts VIRTUAL TABLE
+  INDEX ..."` is SQLite's normal way of describing *any* virtual-table access, not a red flag) --
+  a mistake in the test's own logic, not a finding about the app; fixed to check for the real
+  signal instead (the `notes` table itself being a rowid lookup, not a full scan).
+
+No production bugs found this phase beyond the StrictMode finding above (resolved as "not a bug,
+inherent to the platform" rather than something to fix). Full suite green (137 tests).
+
+---
+
 ## Session 13 — Test strategy overhaul, Phase 6: app-wide PIN lock bypass (2026-11-01)
 
 Started Fase 6 (security review) with the manifest: every `exported` component, `allowBackup`,

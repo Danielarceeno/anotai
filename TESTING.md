@@ -92,6 +92,34 @@ library).
 | **`DriveBackupScheduleTest`** *(new, Fase 5)* | `schedulePeriodicBackup`/`triggerImmediateBackup` actually enqueue the unique work request they document enqueueing (via the real, test-mode `WorkManager`), including the network constraint and `triggerImmediateBackup`'s replace-not-stack behavior when called repeatedly |
 | **`LockGuardedActivityTest`** *(new, Fase 6)* | Regression guard for the app-wide PIN lock bypass (see Session 13's bug writeup below): launching the exported `SearchActivity` directly while locked opens the lock screen instead of showing notes; an already-open `NoteEditorActivity` locks on the next `onResume` once the auto-lock window elapses, not just on a fresh launch |
 | **`DatabaseEncryptionAtRestTest`** *(new, Fase 6)* | The real on-disk SQLCipher database file can't be opened or queried by a plain, unencrypted SQLite reader; a note's plaintext title/body never show up as raw bytes in that file (checked after a forced WAL checkpoint); the DB passphrase itself never appears in plain text in its own (`EncryptedSharedPreferences`-backed) prefs file |
+| **`StrictModeMainThreadIOTest`** *(new, Fase 7)* | A normal `CalendarActivity` launch and opening today's day dialog does no disk-write or network I/O on the main thread (`penaltyDeath`, installed on the main thread itself) -- `detectDiskReads()` deliberately left out, see the test's own doc for why |
+| **`SearchFtsAtScaleTest`** *(new, Fase 7)* | With 10k notes in the table: FTS5 search still goes through the `notes_fts` index (not a full scan of the real `notes` table, confirmed via `EXPLAIN QUERY PLAN`) and finds a match well within a generous soft time budget |
+
+### LeakCanary (Fase 7)
+
+Added as `debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")` -- no dedicated
+test needed. It self-installs via its own `ContentProvider` and watches every destroyed Activity
+in the background for the whole instrumented test run (every `ActivityScenario`-based test already
+launches and destroys at least one), dumping and analyzing the heap if one doesn't get
+garbage-collected. Reports to Logcat/a notification rather than failing the test outright --
+LeakCanary's own instrumented-test-failure integration (`leakcanary-android-instrumentation` +
+`FailTestOnLeakRunListener`) was tried first and crashed every single test on startup
+(`IllegalArgumentException: Could not find extra class leakcanary.FailTestOnLeakRunListener`,
+the exact listener class/wiring for that integration not being verified against this exact
+version); reverted to the plain, self-installing artifact instead, which needs no such wiring.
+
+### Fase 7 tooling evaluation: Macrobenchmark / Baseline Profile
+
+Per the mission's own instruction to evaluate before adding anything: **not added.** Macrobenchmark
+needs its own Gradle module (a plain `androidTestImplementation` dependency isn't enough -- it
+requires a dedicated `com.android.test` module with its own `androidx.benchmark` plugin and
+target-app wiring) plus a non-minified-but-profileable build variant, and its results are only
+meaningful compared across *several* runs on a calibrated reference device/emulator -- there's no
+existing CI pipeline or reference device here to calibrate against yet, so a number from one local
+run would be noise, not a baseline worth gating anything on. The lighter-weight items the same
+Fase 7 section actually asks for (no main-thread I/O, FTS5-at-scale timing, leak detection) are
+covered instead by `StrictModeMainThreadIOTest`/`SearchFtsAtScaleTest`/LeakCanary below, without
+taking on a whole new benchmarking module for this project's current size.
 
 ### Known gaps (not covered, and why)
 

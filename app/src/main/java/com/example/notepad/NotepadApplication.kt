@@ -1,6 +1,8 @@
 package com.example.notepad
 
 import android.app.Application
+import android.content.pm.ApplicationInfo
+import android.os.StrictMode
 import com.example.notepad.data.AppDatabase
 import com.example.notepad.ui.ThemePrefs
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +29,7 @@ class NotepadApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        enableStrictModeIfDebuggable()
         ThemePrefs.applyCurrent(this)
 
         // AppDatabase.getInstance's first call does real I/O synchronously on whatever thread
@@ -37,5 +40,36 @@ class NotepadApplication : Application() {
         // off the main thread, means that by the time an Activity's onCreate runs moments later,
         // the singleton is either already built or at least already in progress elsewhere.
         CoroutineScope(Dispatchers.IO).launch { AppDatabase.getInstance(this@NotepadApplication) }
+    }
+
+    /**
+     * Per the Fase 7 mission: logs (never crashes, `penaltyLog` not `penaltyDeath`) any disk or
+     * network I/O that happens to land on the main thread, in every debug build -- including
+     * instrumented test runs, which always use the debug build variant. Checking via
+     * [ApplicationInfo.FLAG_DEBUGGABLE] rather than a generated `BuildConfig.DEBUG` field, since
+     * `buildFeatures.buildConfig` isn't enabled in this project. `penaltyLog` (not `penaltyDeath`)
+     * on purpose: this is an always-on diagnostic aid for every debug run and manual test pass,
+     * not a hard gate that could crash an otherwise-fine debug session over an already-accepted
+     * I/O path (e.g. SQLCipher's `loadLibs`/migration-check, which genuinely cannot be avoided on
+     * first run) -- a real one-off violation test instead builds its own narrower,
+     * `penaltyDeath`-scoped policy around just the one path it cares about.
+     *
+     * Deliberately not `detectDiskReads()`: `Context.getSharedPreferences()` does its own
+     * internal `File.exists()` disk stat on *every* call, not just the first -- inherent to the
+     * platform API itself (confirmed by actually trying this with it enabled, which flagged
+     * `SecurityPrefs.isPinEnabled`'s very first call), not a bug anywhere in this app, and true of
+     * virtually any Android app using `SharedPreferences` the normal way. Leaving it on would just
+     * drown out genuinely actionable log lines under constant, expected noise from every single
+     * `*Prefs` access throughout the app's whole lifetime.
+     */
+    private fun enableStrictModeIfDebuggable() {
+        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return
+        StrictMode.setThreadPolicy(
+            StrictMode.ThreadPolicy.Builder()
+                .detectDiskWrites()
+                .detectNetwork()
+                .penaltyLog()
+                .build()
+        )
     }
 }
