@@ -190,6 +190,19 @@ class RecurrenceUtilsEdgeCasesTest {
         )
     }
 
+    @Test
+    fun `nextOccurrenceOnOrAfter still finds a one-time note on the far side of a DST transition`() {
+        // Regression: the scan used to step `day += 24h`. Auckland's spring-forward day (last
+        // Sunday of September) is only 23 hours long, so every candidate after it was 01:00
+        // instead of midnight -- never equal to a start-of-day dueDate -- and this returned null,
+        // i.e. NoteReminderScheduler never set that note's exact-time alarm at all.
+        TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Auckland"))
+        val due = dayMillis(2026, Calendar.OCTOBER, 5)
+        val note = Note(title = "t", body = "", dueDate = due, repetition = Note.REPEAT_NONE)
+
+        assertEquals(due, RecurrenceUtils.nextOccurrenceOnOrAfter(note, dayMillis(2026, Calendar.SEPTEMBER, 20)))
+    }
+
     // --- First business day of the month vs. holidays ----------------------------------------
 
     @Test

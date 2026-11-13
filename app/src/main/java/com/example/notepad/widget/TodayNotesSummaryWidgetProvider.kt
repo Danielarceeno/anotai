@@ -11,6 +11,7 @@ import android.widget.RemoteViews
 import com.example.notepad.NotepadApplication
 import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
+import com.example.notepad.data.DayMath
 import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.data.RecurrenceUtils
@@ -94,9 +95,7 @@ class TodayNotesSummaryWidgetProvider : AppWidgetProvider() {
             return views
         }
 
-        private fun startOfToday(): Long = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        private fun startOfToday(): Long = DayMath.startOfToday()
 
         /** Called from [TodayNotesWidgetProvider.notifyNotesChanged] after any note mutation.
          *  Not inside a [android.content.BroadcastReceiver] callback here, so no [goAsync] lease

@@ -21,6 +21,7 @@ import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
 import com.example.notepad.data.BrazilianHolidays
 import com.example.notepad.data.ChecklistItem
+import com.example.notepad.data.DayMath
 import com.example.notepad.data.Note
 import com.example.notepad.data.drive.DriveBackupHelper
 import com.example.notepad.data.NoteRepository
@@ -35,6 +36,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** [dotColors] is capped at 3 (as many dots as the grid cell has room for), one per note
  *  due that day, each tinted to that note's own resolved color (its custom RGB pick, if it has
@@ -99,9 +102,10 @@ class CalendarActivity : AppCompatActivity() {
 
         setupDailyReminderNotification()
 
-        // Re-affirms the periodic Drive backup on every launch (e.g. in case WorkManager's
-        // schedule was cleared by a device reboot before BootReceiver re-registers it, or the
-        // app was reinstalled). schedulePeriodicBackup is safe to call every time.
+        // Re-affirms the periodic Drive backup on every launch, in case the unique work was
+        // cancelled or never enqueued (e.g. app data restored onto a fresh install while still
+        // signed in). WorkManager itself already persists its schedule across reboots;
+        // schedulePeriodicBackup is safe to call every time.
         if (DriveBackupHelper.lastSignedInAccount(this) != null) {
             DriveBackupHelper.schedulePeriodicBackup(this)
         }
@@ -573,7 +577,6 @@ class CalendarActivity : AppCompatActivity() {
         val dayLabel = SimpleDateFormat("EEE, MMMM d", Locale.getDefault()).format(java.util.Date(dateMillis)).let {
             if (holidayName != null) "$it — $holidayName" else it
         }
-        val oneDayMillis = 24 * 60 * 60 * 1000L
 
         DayNotesDialog.show(
             this,
@@ -585,22 +588,40 @@ class CalendarActivity : AppCompatActivity() {
             onRemove = { note -> removeNote(note) },
             onAddText = { openEditor(dateMillis, Note.TYPE_TEXT) },
             onAddChecklist = { openEditor(dateMillis, Note.TYPE_CHECKLIST) },
-            onPrevDay = { showDayDialog(dateMillis - oneDayMillis) },
-            onNextDay = { showDayDialog(dateMillis + oneDayMillis) },
+            // DayMath.addDays, not +/- 24h: the result becomes selectedDayMillis (and so a new
+            // note's dueDate), which has to stay an exact start-of-day value across a DST change.
+            onPrevDay = { showDayDialog(DayMath.addDays(dateMillis, -1)) },
+            onNextDay = { showDayDialog(DayMath.addDays(dateMillis, 1)) },
             onToggleChecklistItem = { note, index, checked -> toggleChecklistItem(note, index, checked) }
         )
     }
 
+    /** Serializes [toggleChecklistItem]/[toggleCompleted]. [DayNotesDialog] hands back the [Note]
+     *  it was opened with for every tap, however many taps came before it, so each change has to
+     *  be applied to the row as it is *now*, not to that snapshot: writing `snapshot.copy(...)`
+     *  meant ticking a second checklist item silently un-ticked the first one again, and marking
+     *  a note done after ticking an item (or the reverse) reverted whichever came first. The
+     *  mutex keeps two quick taps from both re-reading before either has written. */
+    private val dayDialogWriteMutex = Mutex()
+
     private fun toggleChecklistItem(note: Note, itemIndex: Int, checked: Boolean) {
-        val items = ChecklistItem.parse(note.body).toMutableList()
-        if (itemIndex !in items.indices) return
-        items[itemIndex] = items[itemIndex].copy(checked = checked)
-        lifecycleScope.launch { repository.update(note.copy(body = ChecklistItem.serialize(items))) }
+        lifecycleScope.launch {
+            dayDialogWriteMutex.withLock {
+                val current = repository.getById(note.id) ?: return@withLock
+                val items = ChecklistItem.parse(current.body).toMutableList()
+                if (itemIndex !in items.indices) return@withLock
+                items[itemIndex] = items[itemIndex].copy(checked = checked)
+                repository.update(current.copy(body = ChecklistItem.serialize(items)))
+            }
+        }
     }
 
     private fun toggleCompleted(note: Note, dayMillis: Long, completed: Boolean) {
         lifecycleScope.launch {
-            repository.update(RecurrenceUtils.withCompletion(note, dayMillis, completed))
+            dayDialogWriteMutex.withLock {
+                val current = repository.getById(note.id) ?: return@withLock
+                repository.update(RecurrenceUtils.withCompletion(current, dayMillis, completed))
+            }
             // Updates (or cancels, once nothing's left) the ongoing notification right away
             // instead of waiting for the next app open or the 9am alarm.
             ReminderNotifier.checkAndNotify(applicationContext)

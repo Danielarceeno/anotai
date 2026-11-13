@@ -113,6 +113,7 @@
     <string name="widget_description_2x2_list">Um widget 2x2 fixo com as notas de hoje em uma lista pequena</string>
     <string name="widget_description_2x2_summary">Um widget 2x2 fixo mostrando quantas notas vencem hoje e quantas já foram concluídas</string>
     <string name="widget_summary_progress">%1$d de %2$d concluídas hoje</string>
+    <string name="checklist_progress">%1$d/%2$d concluídos</string>
     <string name="widget_label_adaptive">Anotaí (redimensionável)</string>
     <string name="widget_label_1x1">Anotaí (1x1)</string>
     <string name="widget_label_2x2_list">Anotaí: lista de hoje (2x2)</string>
@@ -169,7 +170,6 @@
     <string name="backup_frequency_hours">A cada %1$d horas</string>
     <string name="backup_frequency_daily">Uma vez por dia</string>
     <string name="drive_signed_in_as">Conectado como %1$s</string>
-    <string name="drive_backup_now">Fazer backup agora</string>
     <string name="drive_restore">Restaurar backup</string>
     <string name="drive_sign_out">Sair</string>
     <string name="drive_backup_success">Backup feito no Google Drive</string>

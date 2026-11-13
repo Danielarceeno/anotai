@@ -285,12 +285,15 @@ above), so leak detection is no longer covered.
 - **No release-build (R8-minified) instrumented smoke test yet.** Would catch shrink-related
   breaks in JSON serialization/Room/SQLCipher/reflection that a debug-build test run can't.
   Deferred alongside the tooling above.
-- **`allowBackup="true"` with no explicit `dataExtractionRules`/`fullBackupContent`.** Reviewed,
-  not changed: the only genuinely sensitive material is either the SQLCipher-encrypted DB itself
-  (harmless as an opaque blob backed up to the cloud -- its passphrase lives in Android Keystore,
-  which the OS already excludes from Auto Backup on its own) or a PBKDF2 hash+salt (`SecurityPrefs`
-  PIN), never a reversible plaintext secret. Explicit exclusion rules would be better defense-in-
-  depth than relying on that implicit Keystore behavior, but aren't fixing an active leak.
+- **Auto Backup restore is untested on a real device.** `allowBackup="true"` now has explicit
+  rules (`res/xml/backup_rules.xml`, `data_extraction_rules.xml`) excluding the SQLCipher
+  database, `db_key_prefs.xml` and attached photos. The earlier review here treated this as
+  defense-in-depth only, which missed a functional problem: the passphrase isn't *in* the
+  Keystore, it's in an `EncryptedSharedPreferences` file encrypted *by* a Keystore key. That file
+  and the database were both backed up; the key never is, so after a restore neither could be
+  read and `DatabaseKeyProvider` would throw on every launch. That failure was derived from the
+  code, not reproduced -- a backup/restore round trip (`adb shell bmgr backupnow` / `restore`)
+  onto a wiped emulator is the manual check still owed.
 - **Plaintext-to-SQLCipher migration** (`AppDatabase.migratePlaintextDatabaseIfNeeded`) -- testing
   it safely would need resetting `AppDatabase`'s own static singleton instance mid-process, which
   every *other* test in the same instrumentation run also depends on. Deferred rather than risk

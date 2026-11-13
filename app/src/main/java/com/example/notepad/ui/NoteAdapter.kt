@@ -78,7 +78,7 @@ class NoteAdapter(
                 isLocked -> binding.root.context.getString(com.example.notepad.R.string.note_locked_preview)
                 note.type == Note.TYPE_CHECKLIST -> {
                     val (done, total) = ChecklistItem.countDone(note.body)
-                    "$done/$total done"
+                    binding.root.context.getString(com.example.notepad.R.string.checklist_progress, done, total)
                 }
                 else -> highlighted(NoteFormatting.plainText(note.body, note.isFormatted), highlight)
             }

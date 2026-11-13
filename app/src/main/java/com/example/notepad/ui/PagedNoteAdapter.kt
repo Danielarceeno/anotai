@@ -58,7 +58,7 @@ class PagedNoteAdapter(
                 isLocked -> binding.root.context.getString(R.string.note_locked_preview)
                 note.type == Note.TYPE_CHECKLIST -> {
                     val (done, total) = ChecklistItem.countDone(note.body)
-                    "$done/$total done"
+                    binding.root.context.getString(R.string.checklist_progress, done, total)
                 }
                 else -> NoteFormatting.plainText(note.body, note.isFormatted)
             }

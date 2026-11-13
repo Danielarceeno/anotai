@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup rules for Android 11 and below (android:fullBackupContent); Android 12+ reads
+     data_extraction_rules.xml instead, which lists the same exclusions.
+
+     The notes database is SQLCipher-encrypted with a passphrase stored in db_key_prefs.xml, and
+     that file is itself encrypted with an Android Keystore key. Keystore keys never leave the
+     device, so on any restore (new phone, reinstall) both files come back but neither can be
+     read: EncryptedSharedPreferences throws while opening db_key_prefs.xml, which crashed the app
+     on every launch until its data was cleared by hand. Leaving them out means a restore starts
+     with a clean, working database instead; everything else (settings, PIN hash, theme) is still
+     backed up as before. Getting the notes themselves onto another device is what the Google
+     Drive sync and the JSON export are for. -->
+<full-backup-content>
+    <exclude domain="database" path="notepad.db" />
+    <exclude domain="database" path="notepad.db-wal" />
+    <exclude domain="database" path="notepad.db-shm" />
+    <exclude domain="sharedpref" path="db_key_prefs.xml" />
+    <!-- Attached photos are only reachable through rows of the (excluded) database. -->
+    <exclude domain="file" path="images/" />
+</full-backup-content>

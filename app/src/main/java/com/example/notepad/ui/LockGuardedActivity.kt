@@ -15,7 +15,7 @@ import com.example.notepad.security.SecurityPrefs
  * Before this existed, [CalendarActivity] was the *only* place this check ran -- every other
  * Activity trusted that the user could only have reached it by passing through the calendar's
  * lock gate first. That assumption had two real holes (see DEV_LOG.md Session 13):
- * 1. Sitting in any other screen (a note, Trash, Settings, Drive sync, Folders) while the
+ * 1. Sitting in any other screen (a note, the notes list, Trash, Settings, Drive sync, Folders) while the
  *    auto-lock window elapsed never re-prompted for the PIN on returning to it -- only
  *    `CalendarActivity.onResume` checked, and coming back to a *different* screen never passes
  *    through there.

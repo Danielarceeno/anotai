@@ -6,10 +6,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import com.example.notepad.data.DayMath
 import com.example.notepad.data.Note
 import com.example.notepad.ui.CalendarActivity
 import com.example.notepad.ui.NoteEditorActivity
-import java.util.Calendar
 
 /**
  * A fixed 1x1 widget, offered as its own pickable entry in the launcher's widget picker instead
@@ -48,9 +48,7 @@ class TodayNotes1x1WidgetProvider : AppWidgetProvider() {
             )
         }
 
-        private fun todayStartMillis(): Long = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        private fun todayStartMillis(): Long = DayMath.startOfToday()
 
         /** Called from [TodayNotesWidgetProvider.notifyNotesChanged] after any note mutation. */
         fun refresh(context: Context) {

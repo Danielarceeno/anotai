@@ -52,7 +52,9 @@ object ShareImageHelper {
         val binding = ShareNoteCardBinding.inflate(LayoutInflater.from(context))
         val root = binding.root
 
-        val colorInt = context.getColor(NoteColors.colorResFor(note.colorIndex))
+        // resolveArgb, not the palette index alone: a note with a custom RGB color otherwise
+        // rendered in whichever palette swatch its (unrelated) colorIndex still pointed at.
+        val colorInt = NoteColors.resolveArgb(context, note)
         val textColor = if (NoteColors.isLight(colorInt)) 0xFF1A1A1A.toInt() else 0xFFF5F5F5.toInt()
         root.background = GradientDrawable().apply {
             setColor(colorInt)

@@ -5,9 +5,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.example.notepad.data.DayMath
 import com.example.notepad.data.Note
 import com.example.notepad.data.RecurrenceUtils
-import java.util.Calendar
 
 /**
  * On top of the existing once-a-day 9am catch-all ([ReminderScheduler]/[DailyReminderReceiver]),
@@ -24,7 +24,7 @@ object NoteReminderScheduler {
         cancel(context, note.id)
         if (note.reminderTimeMinutes < 0 || note.dueDate == 0L) return
 
-        val todayStart = startOfToday()
+        val todayStart = DayMath.startOfToday()
         var day = RecurrenceUtils.nextOccurrenceOnOrAfter(note, todayStart) ?: return
         var trigger = day + note.reminderTimeMinutes * 60_000L
         val now = System.currentTimeMillis()
@@ -38,8 +38,7 @@ object NoteReminderScheduler {
             if (endTrigger > now) {
                 trigger = now
             } else {
-                val oneDayMillis = 24 * 60 * 60 * 1000L
-                day = RecurrenceUtils.nextOccurrenceOnOrAfter(note, todayStart + oneDayMillis) ?: return
+                day = RecurrenceUtils.nextOccurrenceOnOrAfter(note, DayMath.addDays(todayStart, 1)) ?: return
                 trigger = day + note.reminderTimeMinutes * 60_000L
             }
         }
@@ -60,10 +59,6 @@ object NoteReminderScheduler {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.cancel(pendingIntent(context, noteId))
     }
-
-    private fun startOfToday(): Long = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
 
     private fun pendingIntent(context: Context, noteId: Long): PendingIntent {
         val intent = Intent(context, NoteReminderReceiver::class.java)

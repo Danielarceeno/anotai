@@ -8,6 +8,7 @@ import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.example.notepad.R
+import com.example.notepad.data.DayMath
 import com.example.notepad.data.Note
 import com.example.notepad.databinding.ActivityReminderBinding
 import java.text.DateFormat
@@ -79,7 +80,14 @@ class ReminderActivity : AppCompatActivity() {
                 Intent()
                     .putExtra(EXTRA_DUE_DATE, selectedDate)
                     .putExtra(EXTRA_REPETITION, binding.repetitionSpinner.selectedItemPosition)
-                    .putExtra(EXTRA_REPEAT_UNTIL, repeatUntil)
+                    // Dropped when there's no repetition: the "Repeat until" row is hidden then,
+                    // but a date picked earlier (before switching back to one-time) was still
+                    // sent along, and RecurrenceUtils.occursOn rejects any day after repeatUntil
+                    // -- so a one-time note dated past that leftover value never showed up at all.
+                    .putExtra(
+                        EXTRA_REPEAT_UNTIL,
+                        if (binding.repetitionSpinner.selectedItemPosition == Note.REPEAT_NONE) 0L else repeatUntil
+                    )
                     .putExtra(EXTRA_REMINDER_TIME_MINUTES, if (selectedDate == 0L) -1 else reminderTimeMinutes)
                     .putExtra(EXTRA_REMINDER_END_TIME_MINUTES, if (selectedDate == 0L) -1 else reminderEndTimeMinutes)
             )
@@ -156,13 +164,14 @@ class ReminderActivity : AppCompatActivity() {
      *  weekday name, covering out to a week from today) / Specific date for anything further out. */
     private fun showWhenOptions() {
         val today = startOfToday()
-        val oneDayMillis = 24 * 60 * 60 * 1000L
         val weekdayFormat = SimpleDateFormat("EEEE", Locale.getDefault())
 
+        // DayMath.addDays, not `today + n * 24h`: these become a note's dueDate, which must be an
+        // exact start-of-day value, and a fixed-millis step is an hour off across a DST change.
         val labels = mutableListOf(getString(R.string.reminder_when_no_date), getString(R.string.reminder_when_today), getString(R.string.reminder_when_tomorrow))
-        val dates = mutableListOf(0L, today, today + oneDayMillis)
+        val dates = mutableListOf(0L, today, DayMath.addDays(today, 1))
         for (daysAhead in 2..6) {
-            val millis = today + daysAhead * oneDayMillis
+            val millis = DayMath.addDays(today, daysAhead)
             labels.add(weekdayFormat.format(Date(millis)).replaceFirstChar { it.uppercase(Locale.getDefault()) })
             dates.add(millis)
         }
@@ -250,10 +259,7 @@ class ReminderActivity : AppCompatActivity() {
         ).show()
     }
 
-    private fun startOfToday(): Long =
-        Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+    private fun startOfToday(): Long = DayMath.startOfToday()
 
     companion object {
         const val EXTRA_DUE_DATE = "due_date"

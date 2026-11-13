@@ -88,7 +88,17 @@ class SearchActivity : LockGuardedActivity() {
         if (redirectToLockScreenIfLocked()) return
         UndoDeleteState.consumeRecent()?.let { noteId ->
             Snackbar.make(binding.root, R.string.note_deleted_message, Snackbar.LENGTH_LONG)
-                .setAction(R.string.action_undo) { lifecycleScope.launch { repository.restore(noteId) } }
+                .setAction(R.string.action_undo) {
+                    lifecycleScope.launch {
+                        repository.restore(noteId)
+                        // The editor's delete cancelled this note's exact-time alarm; restoring
+                        // it without re-scheduling (as MainActivity's same undo already does)
+                        // left the note back in place but its reminder silently gone.
+                        repository.getById(noteId)?.let {
+                            com.example.notepad.notification.NoteReminderScheduler.schedule(this@SearchActivity, it)
+                        }
+                    }
+                }
                 .show()
         }
     }

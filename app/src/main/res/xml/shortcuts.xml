@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Long-press the launcher icon to jump straight into a new note, skipping the calendar/FAB
      tap-through. Both shortcuts target CalendarActivity (not NoteEditorActivity directly) with a
-     custom action it recognizes once its own PIN-lock check passes. NoteEditorActivity has no
-     PIN check of its own and relies entirely on CalendarActivity gating access before
-     navigation, so a shortcut pointing straight at it would bypass the PIN lock. -->
+     custom action it recognizes once its own PIN-lock check passes, and carries through the
+     lock screen (LockActivity.EXTRA_PENDING_ACTION) so unlocking still ends up in the new note.
+     NoteEditorActivity is not exported, so a shortcut couldn't target it directly anyway. -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
         android:shortcutId="new_text_note"

@@ -855,15 +855,21 @@ class NoteEditorActivity : LockGuardedActivity() {
                         imagePath = imagePath,
                         modifiedDate = System.currentTimeMillis()
                     )
-                    repo.update(saved)
+                    // This runs on every onPause, including after just opening a note to read it.
+                    // Writing an identical row anyway bumped modifiedDate each time, which (a)
+                    // reshuffled the "most recent" sort for a note nobody edited and (b) made this
+                    // device's untouched copy look newer than a real edit made on another device,
+                    // so the next Drive merge -- newer modifiedDate wins -- discarded that edit.
+                    val unchanged = saved.copy(modifiedDate = existingRow.modifiedDate) == existingRow
+                    if (!unchanged) repo.update(saved)
                     // Harmless no-op if this Activity instance is already destroyed; only
                     // matters if it's merely paused and comes back -- same as the insert branch
-                    // below. Also means the next saveIfNeeded() on this instance (if any) goes
-                    // through the normal existing-note path instead of a uuid lookup again.
-                    if (existing == null) {
-                        note = saved
-                        pendingNewNoteUuid = null
-                    }
+                    // below. Keeps `note` equal to what's actually in the database, so the next
+                    // saveIfNeeded() on this instance (if any) both goes through the normal
+                    // existing-note path instead of a uuid lookup and compares against the right
+                    // row for the "unchanged" check above.
+                    note = if (unchanged) existingRow else saved
+                    pendingNewNoteUuid = null
                 } else {
                     val draft = Note(
                         title = title,
@@ -935,7 +941,10 @@ class NoteEditorActivity : LockGuardedActivity() {
         } else {
             binding.bodyInput.text.toString()
         }
-        val draft = Note(title = title, body = body, colorIndex = selectedColorIndex, type = noteType)
+        val draft = Note(
+            title = title, body = body, colorIndex = selectedColorIndex,
+            customColorArgb = selectedCustomColor, type = noteType
+        )
         ShareImageHelper.share(this, draft)
     }
 

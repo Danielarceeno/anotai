@@ -16,19 +16,26 @@ package com.example.notepad.data
 object RemindersCache {
     private const val TTL_MILLIS = 2000L
 
-    @Volatile private var cached: List<Note>? = null
-    @Volatile private var cachedAt: Long = 0L
+    private class Entry(val notes: List<Note>, val at: Long)
+
+    @Volatile private var cached: Entry? = null
+
+    /** Bumped by every [invalidate]. A fetch that started before a write and finished after it
+     *  holds pre-write data; without this check it would be stored *after* that write's
+     *  [invalidate] ran, and then served as fresh for the rest of the TTL. */
+    private val generation = java.util.concurrent.atomic.AtomicLong()
 
     suspend fun get(fetch: suspend () -> List<Note>): List<Note> {
         val snapshot = cached
-        if (snapshot != null && System.currentTimeMillis() - cachedAt < TTL_MILLIS) return snapshot
+        if (snapshot != null && System.currentTimeMillis() - snapshot.at < TTL_MILLIS) return snapshot.notes
+        val startedAt = generation.get()
         val fresh = fetch()
-        cached = fresh
-        cachedAt = System.currentTimeMillis()
+        if (generation.get() == startedAt) cached = Entry(fresh, System.currentTimeMillis())
         return fresh
     }
 
     fun invalidate() {
+        generation.incrementAndGet()
         cached = null
     }
 }

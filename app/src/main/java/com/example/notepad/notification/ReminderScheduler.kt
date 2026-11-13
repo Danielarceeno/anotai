@@ -8,7 +8,7 @@ import android.os.Build
 import java.util.Calendar
 
 /**
- * Schedules [DailyReminderReceiver] to run once a day at [HOUR_OF_DAY]:00.
+ * Schedules [DailyReminderReceiver] to run once a day at [ReminderPrefs]' time (9:00 by default).
  *
  * Uses an exact, idle-allowed one-shot alarm instead of [AlarmManager.setInexactRepeating]:
  * the old repeating-inexact alarm is notoriously unreliable across Doze/App Standby (it can

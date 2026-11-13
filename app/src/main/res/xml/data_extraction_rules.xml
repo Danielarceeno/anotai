@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ counterpart of backup_rules.xml (see that file for why): the encrypted notes
+     database and its Keystore-wrapped passphrase can't be read back after a cloud restore or a
+     device-to-device transfer, so neither path carries them. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="notepad.db" />
+        <exclude domain="database" path="notepad.db-wal" />
+        <exclude domain="database" path="notepad.db-shm" />
+        <exclude domain="sharedpref" path="db_key_prefs.xml" />
+        <exclude domain="file" path="images/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="notepad.db" />
+        <exclude domain="database" path="notepad.db-wal" />
+        <exclude domain="database" path="notepad.db-shm" />
+        <exclude domain="sharedpref" path="db_key_prefs.xml" />
+        <exclude domain="file" path="images/" />
+    </device-transfer>
+</data-extraction-rules>

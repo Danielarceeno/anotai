@@ -55,6 +55,10 @@ class ChecklistAddRowTest {
         // three items actually got persisted (not just visible mid-edit), and in order (title
         // match already confirms the note itself saved).
         onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("Grocery list"))))
-        onView(withId(R.id.recyclerView)).check(matches(hasDescendant(withText("0/3 done"))))
+        // Read from the resource rather than hardcoded: that label is localized now, so a literal
+        // "0/3 done" would only pass on an English-locale device.
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        onView(withId(R.id.recyclerView))
+            .check(matches(hasDescendant(withText(context.getString(R.string.checklist_progress, 0, 3)))))
     }
 }

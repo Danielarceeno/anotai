@@ -99,7 +99,12 @@ class NoteRepository(
         val merged = (local.keys + remote.keys).associateWith { uuid ->
             maxOf(local[uuid] ?: 0L, remote[uuid] ?: 0L)
         }
-        merged.forEach { (uuid, deletedAt) -> tombstoneDao.insert(NoteTombstone(uuid, deletedAt)) }
+        // Only the ones that are actually new or newer than what's already stored: this runs on
+        // every sync, and the tombstone table only ever grows, so rewriting every row each time
+        // was one redundant write transaction per tombstone, forever.
+        merged.forEach { (uuid, deletedAt) ->
+            if (local[uuid] != deletedAt) tombstoneDao.insert(NoteTombstone(uuid, deletedAt))
+        }
         return merged
     }
 
@@ -132,8 +137,6 @@ class NoteRepository(
     }
 
     fun observeTrashed(): LiveData<List<Note>> = dao.observeTrashed()
-
-    fun observeByFolder(folderId: Long): LiveData<List<Note>> = dao.observeByFolder(folderId)
 
     /** Every active note's id in the given scope ([folderId] of 0 meaning "every folder"), for
      *  "select all" -- independent of how much of a paged list has actually loaded on screen. */

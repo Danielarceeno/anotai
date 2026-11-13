@@ -243,25 +243,40 @@ object DriveBackupHelper {
         syncMutex.withLock {
             val local = repository.getAllForExport()
             val remoteData = remoteStore.restore()
+            var addedCount = 0
             val merged = if (remoteData != null) {
                 val tombstones = repository.mergeTombstones(remoteData.tombstones)
                 val result = mergeByUuid(local, remoteData.notes, tombstones)
-                applyMergeResult(context, repository, result)
+                // Counted from the merge itself (id == 0 is "this device didn't have it yet"),
+                // not as `merged.size - local.size`: that difference also subtracts every note
+                // the same merge trashed, so it under-reported -- or went negative -- whenever a
+                // sync both brought notes in and applied another device's deletions.
+                addedCount = result.notes.count { it.id == 0L }
+                applyMergeResult(context, repository, local, result)
                 result.notes
             } else {
                 local
             }
             remoteStore.backup(merged, repository.getTombstones())
-            SyncResult(merged, merged.size - local.size, hadRemoteBackup = remoteData != null)
+            SyncResult(merged, addedCount, hadRemoteBackup = remoteData != null)
         }
 
-    /** Applies a [mergeByUuid] result locally: a merged note that kept an existing local id is an
-     *  update (whether its content changed or not, which is cheap and simpler than diffing); one
-     *  with `id == 0` is a note this device didn't have yet. [MergeResult.locallyDeletedIds] are
-     *  trashed too -- notes this device still had active, but that the merge found a newer
-     *  tombstone for from another device. */
-    private suspend fun applyMergeResult(context: Context, repository: NoteRepository, result: MergeResult) {
+    /** Applies a [mergeByUuid] result locally: a merged note with `id == 0` is one this device
+     *  didn't have yet (insert); one that kept an existing local id is an update -- but only if
+     *  the remote copy actually won. A note [mergeByUuid] left exactly as it was in [local] is
+     *  skipped: on a typical sync that's nearly all of them, and each [NoteRepository.update]
+     *  costs a write transaction, a paged-list invalidation and a refresh of every home-screen
+     *  widget. [MergeResult.locallyDeletedIds] are trashed too -- notes this device still had
+     *  active, but that the merge found a newer tombstone for from another device. */
+    private suspend fun applyMergeResult(
+        context: Context,
+        repository: NoteRepository,
+        local: List<Note>,
+        result: MergeResult
+    ) {
+        val localById = local.associateBy { it.id }
         for (note in result.notes) {
+            if (note.id != 0L && note == localById[note.id]) continue
             val saved = if (note.id == 0L) note.copy(id = repository.insert(note)) else note.also { repository.update(it) }
             NoteReminderScheduler.schedule(context, saved)
         }

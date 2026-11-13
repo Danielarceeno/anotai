@@ -24,7 +24,13 @@ object DatabaseKeyProvider {
 
         val generated = ByteArray(PASSPHRASE_BYTES).also { SecureRandom().nextBytes(it) }
             .joinToString("") { "%02x".format(it) }
-        prefs.edit().putString(KEY_PASSPHRASE, generated).apply()
+        // commit(), not apply(): the database gets created with this passphrase right after this
+        // returns. apply() only queues the disk write, so a crash or kill in that window would
+        // leave an encrypted database on disk whose passphrase was never persisted -- unreadable
+        // for good. Failing loudly here beats handing back a key that may not survive.
+        check(prefs.edit().putString(KEY_PASSPHRASE, generated).commit()) {
+            "Could not persist the database passphrase"
+        }
         return generated.toCharArray()
     }
 

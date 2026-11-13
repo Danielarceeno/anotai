@@ -12,6 +12,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
+import com.example.notepad.data.DayMath
 import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.data.RecurrenceUtils
@@ -37,9 +38,7 @@ object ReminderNotifier {
 
         val db = AppDatabase.getInstance(context)
         val repository = NoteRepository(db.noteDao(), context.applicationContext, db.noteTombstoneDao())
-        val todayStart = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        val todayStart = DayMath.startOfToday()
 
         val nowMinutes = Calendar.getInstance().let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
         val notesToday = repository.getAllReminders()
@@ -95,7 +94,14 @@ object ReminderNotifier {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        fun bodyPlainText(note: Note) = com.example.notepad.ui.NoteFormatting.plainText(note.body, note.isFormatted)
+        // A password-protected note's body never leaves the editor's unlock gate anywhere else in
+        // the app (lists, day dialog and widgets all show this same placeholder) -- it used to be
+        // printed here in full, in the shade, for anyone holding the unlocked phone to read.
+        fun bodyPlainText(note: Note) = if (note.passwordHash.isNotEmpty()) {
+            context.getString(R.string.note_locked_preview)
+        } else {
+            com.example.notepad.ui.NoteFormatting.plainText(note.body, note.isFormatted)
+        }
         fun label(note: Note) = note.title.ifBlank { bodyPlainText(note).take(60) }
 
         val titleText = "[${notes.size}] ${label(first)}"

@@ -14,7 +14,10 @@ a home-screen widget, launcher shortcuts, and optional Google Drive backup.
 
 ## Features
 
-- **Notes**: text or checklist, 8-color palette, pin to top, bulk select/move/delete, undo on delete.
+- **Notes**: text (with bold/italic/underline) or checklist, 8-color palette plus a free custom
+  RGB color, an attached photo, pin to top, bulk select/move/delete, undo on delete, share as
+  text or as an image, and an optional per-note password that hides the body everywhere outside
+  the editor.
 - **Search**: debounced, with the matched term highlighted in results.
 - **Calendar**: full-screen monthly grid, swipe or arrow-button navigation, a dot per note due
   that day, Saturday/Sunday day numbers *and* weekday-header letters tinted, tap a day to
@@ -25,19 +28,23 @@ a home-screen widget, launcher shortcuts, and optional Google Drive backup.
   in the day dialog -- on by default, toggleable from Settings.
 - **Reminders**: due date + recurrence (none, daily, every weekday, weekly, bi-weekly, monthly,
   yearly, monthly on the same week-of-month + weekday e.g. "every 2nd Friday", or the first
-  business day of the month), with a daily 9am notification and snooze. Tapping the notification
+  business day of the month), with a daily 9am notification and snooze, plus an optional exact
+  time (or time range) per note with its own alarm. Tapping the notification
   (or a task in the home-screen widget) opens that day's task list, the same popup tapping the
   day on the calendar shows, rather than jumping straight into a single note's editor.
 - **Folders** and a **recoverable trash** (restore or permanently delete).
 - **Security**: optional PIN lock with biometric unlock as a shortcut on top of it.
-- **Home-screen widget**: today's notes (or the next 3/7 days, configurable), kept in sync
-  automatically.
+- **Home-screen widgets**: a resizable list of today's notes (or the next 3/7 days,
+  configurable), fixed 1x1 and 2x2 variants, a 2x2 "done today" progress tile, and a 1x1 tile
+  pinned to one chosen note -- all kept in sync automatically.
 - **Launcher shortcuts**: long-press the app icon for "New text note" / "New checklist".
 - **Backup**: manual export/import to a local JSON file, or sign in with Google from the
   dedicated Sync screen and back up to a private, app-scoped folder in Google Drive -- an
   automatic background sync right after creating a note, plus a configurable periodic
-  background sync, with conflict detection if another device wrote a newer backup since this
-  one last synced.
+  background sync. Every sync merges note by note (the newer edit wins, deletions are carried
+  across devices) instead of one device's backup overwriting the other's. Android's own Auto
+  Backup deliberately skips the notes database: it's encrypted with a key that never leaves
+  the device, so a restored copy couldn't be opened.
 
 ## Getting started
 
@@ -99,32 +106,42 @@ repo since it's tied to each developer's signing certificate:
 app/src/main/java/com/example/notepad/
 ├── data/
 │   ├── Note.kt, Folder.kt, ChecklistItem.kt      Room entities / serialization
-│   ├── NoteDao.kt, FolderDao.kt, AppDatabase.kt  Room DB and queries
+│   ├── NoteTombstone.kt, NoteTombstoneDao.kt     deletion markers for the Drive merge
+│   ├── NoteDao.kt, FolderDao.kt, AppDatabase.kt  Room DB (SQLCipher), queries, migrations
+│   ├── DatabaseKeyProvider.kt                    Keystore-wrapped database passphrase
 │   ├── NoteRepository.kt, FolderRepository.kt    thin repository layer over the DAOs
-│   ├── RecurrenceUtils.kt                        due-date/recurrence math
+│   ├── RemindersCache.kt                         short-lived memo of "notes with a due date"
+│   ├── RecurrenceUtils.kt, DayMath.kt            due-date/recurrence math, DST-safe day steps
 │   ├── BrazilianHolidays.kt                      fixed + Easter-derived national holidays
 │   ├── BackupHelper.kt                           JSON (de)serialization shared by local
 │   │                                              export/import and Drive backup
 │   └── drive/
 │       ├── DriveBackupHelper.kt                  Google sign-in, Drive upload/download,
-│       │                                          conflict detection, periodic scheduling
-│       └── DriveBackupWorker.kt                  WorkManager job for the 12h auto-backup
+│       │                                          per-note merge, periodic scheduling
+│       └── DriveBackupWorker.kt                  WorkManager job for the periodic/immediate sync
 ├── notification/
-│   ├── ReminderScheduler.kt, ReminderNotifier.kt, ReminderPrefs.kt
+│   ├── ReminderScheduler.kt, ReminderNotifier.kt, ReminderPrefs.kt   the daily check
+│   ├── NoteReminderScheduler.kt, NoteReminderReceiver.kt             per-note exact-time alarms
 │   ├── DailyReminderReceiver.kt, SnoozeReceiver.kt, BootReceiver.kt
 ├── security/
-│   └── SecurityPrefs.kt                          salted PIN hash (PBKDF2) + biometric flag
+│   ├── SecurityPrefs.kt                          PIN hash, biometric flag, auto-lock state
+│   └── PasswordHasher.kt                         salted PBKDF2, shared by PIN and note passwords
 ├── widget/
-│   ├── TodayNotesWidgetProvider.kt, TodayNotesRemoteViewsService.kt
+│   ├── TodayNotesWidgetProvider.kt, TodayNotesRemoteViewsService.kt  resizable "today" list
+│   ├── TodayNotes1x1/2x2/SummaryWidgetProvider.kt                    fixed-size variants
+│   └── PickedNoteWidgetProvider.kt, *Prefs.kt                        one chosen note per tile
 └── ui/
     ├── CalendarActivity.kt, CalendarGridLayout.kt launcher screen: monthly grid, shortcuts
-    ├── MainActivity.kt, NoteAdapter.kt            notes list
+    ├── MainActivity.kt, PagedNoteAdapter.kt       notes list (paged)
     ├── NoteEditorActivity.kt, ChecklistAdapter.kt  create/edit a note
-    ├── SearchActivity.kt, SearchViewModel.kt
+    ├── NoteFormatting.kt, NoteColors.kt, ShareImageHelper.kt
+    ├── SearchActivity.kt, SearchViewModel.kt, NoteAdapter.kt
     ├── FoldersActivity.kt, FolderAdapter.kt
     ├── TrashActivity.kt, TrashAdapter.kt
-    ├── SettingsActivity.kt                       reminder time, folders/trash, backup, PIN
-    ├── LockActivity.kt                           PIN/biometric unlock screen
+    ├── SettingsActivity.kt                       theme, calendar, widget range, backup, PIN
+    ├── DriveSyncActivity.kt                      Google sign-in and sync screen
+    ├── LockActivity.kt, LockGuardedActivity.kt   PIN/biometric unlock screen and its guard
+    ├── PickedNoteWidgetConfigActivity.kt         picks the note for a 1x1 note widget
     └── ReminderActivity.kt, DayNotesDialog.kt, AddNoteTypeDialog.kt
 ```
 

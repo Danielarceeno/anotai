@@ -37,4 +37,22 @@ class RemindersCacheTest {
 
         assertEquals(2, fetchCount)
     }
+
+    @Test
+    fun `a fetch that a write raced is returned to its caller but never cached`() = runBlocking {
+        // A note write (-> invalidate) landing while a fetch is still reading the table: that
+        // fetch's rows predate the write. It used to be stored anyway, after the invalidate had
+        // already run, and then served as fresh to the very consumers the write notified.
+        var fetchCount = 0
+        RemindersCache.get {
+            fetchCount++
+            RemindersCache.invalidate()
+            listOf(note("pre-write"))
+        }
+
+        val afterWrite = RemindersCache.get { fetchCount++; listOf(note("post-write")) }
+
+        assertEquals(2, fetchCount)
+        assertEquals("post-write", afterWrite.single().title)
+    }
 }

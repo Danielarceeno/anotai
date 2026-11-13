@@ -7,7 +7,6 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.activity.addCallback
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -36,7 +35,7 @@ import kotlin.math.abs
  * which is how multiple notes get moved to a folder or trashed at once.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class MainActivity : AppCompatActivity() {
+class MainActivity : LockGuardedActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var adapter: PagedNoteAdapter
@@ -130,6 +129,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The notes list itself was the one content screen left out when LockGuardedActivity
+        // was introduced: sitting here (or in a folder's list) while the auto-lock window
+        // elapsed never re-prompted for the PIN on coming back.
+        if (redirectToLockScreenIfLocked()) return
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -206,6 +209,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (redirectToLockScreenIfLocked()) return
         // Forces the paged list to reload right away instead of waiting on Room's own
         // invalidation timing, which is noticeably laggy for this specific path: a note deleted
         // from the editor (NoteEditorActivity.deleteAndFinish) is already gone from the database

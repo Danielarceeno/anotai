@@ -11,10 +11,10 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import com.example.notepad.R
 import com.example.notepad.data.ChecklistItem
+import com.example.notepad.data.DayMath
 import com.example.notepad.data.Note
 import com.example.notepad.data.RecurrenceUtils
 import com.example.notepad.databinding.DialogDayNotesBinding
-import java.util.Calendar
 
 /**
  * Tapping a calendar day shows this: the notes already due that day (reference
@@ -31,10 +31,7 @@ object DayNotesDialog {
      *  Gated behind [CalendarPrefs.isOverdueHighlightEnabled] (on by default, see Settings). */
     private fun isOverdue(context: Context, dayMillis: Long, isDoneToday: Boolean): Boolean {
         if (!CalendarPrefs.isOverdueHighlightEnabled(context)) return false
-        val todayStart = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-        return dayMillis < todayStart && !isDoneToday
+        return dayMillis < DayMath.startOfToday() && !isDoneToday
     }
 
     /** Colors [title] red per [isOverdue], or back to [defaultColor] -- called both when a row

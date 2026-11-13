@@ -7,10 +7,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import com.example.notepad.R
+import com.example.notepad.data.DayMath
 import com.example.notepad.data.Note
 import com.example.notepad.ui.CalendarActivity
 import com.example.notepad.ui.NoteEditorActivity
-import java.util.Calendar
 
 /**
  * A fixed 2x2 widget showing today's notes as a small scrollable list, offered as its own
@@ -50,9 +50,7 @@ class TodayNotes2x2WidgetProvider : AppWidgetProvider() {
             )
         }
 
-        private fun todayStartMillis(): Long = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        private fun todayStartMillis(): Long = DayMath.startOfToday()
 
         /** Called from [TodayNotesWidgetProvider.notifyNotesChanged] after any note mutation. */
         fun refresh(context: Context) {

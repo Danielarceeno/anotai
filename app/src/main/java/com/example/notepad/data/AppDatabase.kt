@@ -189,7 +189,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         /**
          * Reads every row out of the existing plaintext `notepad.db` through Room itself --
-         * running it through the exact same [MIGRATION_7_8]/[MIGRATION_8_9] chain any other
+         * running it through the exact same [MIGRATION_7_8]..[MIGRATION_14_15] chain any other
          * upgrade already goes through, rather than duplicating schema knowledge in raw SQL --
          * then writes it all into a brand new SQLCipher-encrypted database and swaps it in. A
          * no-op if there's no existing file (fresh install) or it already opens with
@@ -217,6 +217,10 @@ abstract class AppDatabase : RoomDatabase() {
                     legacyDb.folderDao().getAll() to
                         (legacyDb.noteDao().getAllForExport() + legacyDb.noteDao().getTrashedForCleanup())
                 }
+                // Tombstones too, not just notes/folders: MIGRATION_11_12 above backfills one per
+                // already-trashed note in the legacy copy, and dropping them here would let the
+                // next Drive merge resurrect every one of those notes (see NoteTombstone's doc).
+                val tombstones = runBlocking { legacyDb.noteTombstoneDao().getAll() }
                 legacyDb.close()
                 deleteDatabaseFiles(context, legacyName)
 
@@ -227,6 +231,7 @@ abstract class AppDatabase : RoomDatabase() {
                 runBlocking {
                     folders.forEach { encryptedDb.folderDao().insert(it) }
                     notes.forEach { encryptedDb.noteDao().insert(it) }
+                    tombstones.forEach { encryptedDb.noteTombstoneDao().insert(it) }
                 }
                 encryptedDb.close()
 

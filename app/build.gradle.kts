@@ -124,7 +124,6 @@ dependencies {
 
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
-
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
 
     // Tiny, dependency-free artifact (no Android framework or test-runner code) meant exactly
@@ -202,14 +201,16 @@ tasks.register<JacocoReport>("jacocoTestReport") {
         "**/databinding/**", "**/BR.*", // view-binding-generated
         "**/*\$ViewInjector*.*", "**/*\$ViewBinder*.*"
     )
-    val debugTree = fileTree("$buildDir/intermediates/javac/debug") { exclude(fileFilter) } +
-        fileTree("$buildDir/tmp/kotlin-classes/debug") { exclude(fileFilter) }
+    // layout.buildDirectory, not the deprecated Project.buildDir getter.
+    val buildDirFile = layout.buildDirectory.get().asFile
+    val debugTree = fileTree("$buildDirFile/intermediates/javac/debug") { exclude(fileFilter) } +
+        fileTree("$buildDirFile/tmp/kotlin-classes/debug") { exclude(fileFilter) }
     val mainSrc = "${project.projectDir}/src/main/java"
 
     sourceDirectories.setFrom(files(mainSrc))
     classDirectories.setFrom(files(debugTree))
     executionData.setFrom(
-        fileTree(buildDir) {
+        fileTree(buildDirFile) {
             include(
                 "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",
                 "outputs/code_coverage/debugAndroidTest/connected/**/*.ec"

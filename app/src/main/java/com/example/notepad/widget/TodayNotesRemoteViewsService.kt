@@ -6,11 +6,11 @@ import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import com.example.notepad.R
 import com.example.notepad.data.AppDatabase
+import com.example.notepad.data.DayMath
 import com.example.notepad.data.Note
 import com.example.notepad.data.NoteRepository
 import com.example.notepad.data.RecurrenceUtils
 import com.example.notepad.ui.CalendarActivity
-import java.util.Calendar
 import kotlinx.coroutines.runBlocking
 
 class TodayNotesRemoteViewsService : RemoteViewsService() {
@@ -44,17 +44,16 @@ private class TodayNotesRemoteViewsFactory(
         // already queried the exact same thing moments ago for the same note mutation that
         // triggered this widget refresh in the first place -- see RemindersCache's doc.
         val repository = NoteRepository(db.noteDao(), context, db.noteTombstoneDao())
-        val todayStart = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-        val oneDayMillis = 24 * 60 * 60 * 1000L
+        val todayStart = DayMath.startOfToday()
         val rangeDays = WidgetPrefs.getRangeDays(context)
 
         val allReminders = runBlocking { repository.getAllReminders() }
         val seenIds = mutableSetOf<Long>()
         val result = mutableListOf<WidgetEntry>()
         for (offset in 0 until rangeDays) {
-            val dayStart = todayStart + offset * oneDayMillis
+            // DayMath.addDays, not `todayStart + offset * 24h`: across a DST change that lands an
+            // hour off midnight, so occursOn/isCompletedOn (exact start-of-day comparisons) miss.
+            val dayStart = DayMath.addDays(todayStart, offset)
             allReminders
                 .filter { RecurrenceUtils.occursOn(it, dayStart) && !RecurrenceUtils.isCompletedOn(it, dayStart) }
                 .forEach { note -> if (seenIds.add(note.id)) result.add(WidgetEntry(note, dayStart)) }

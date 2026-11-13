@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.RemoteViews
 import com.example.notepad.R
+import com.example.notepad.data.DayMath
 import com.example.notepad.data.Note
 import com.example.notepad.ui.CalendarActivity
 import com.example.notepad.ui.NoteEditorActivity
@@ -177,8 +178,6 @@ class TodayNotesWidgetProvider : AppWidgetProvider() {
             return views
         }
 
-        private fun todayStartMillis(): Long = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        private fun todayStartMillis(): Long = DayMath.startOfToday()
     }
 }

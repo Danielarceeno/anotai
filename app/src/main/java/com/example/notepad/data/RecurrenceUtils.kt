@@ -14,29 +14,38 @@ object RecurrenceUtils {
         if (note.dueDate == 0L || dayStart < note.dueDate) return false
         if (note.repeatUntil != 0L && dayStart > note.repeatUntil) return false
 
-        val due = Calendar.getInstance().apply { timeInMillis = note.dueDate }
-        val target = Calendar.getInstance().apply { timeInMillis = dayStart }
-
+        // Calendars are only built inside the branches that actually need one: this runs once per
+        // note per visible day (42 grid cells x every reminder, on the main thread), and the two
+        // most common cases -- no repetition, daily -- need neither.
         return when (note.repetition) {
             Note.REPEAT_NONE -> dayStart == note.dueDate
             Note.REPEAT_DAILY -> true
             Note.REPEAT_EVERY_WEEKDAY -> {
-                val dow = target.get(Calendar.DAY_OF_WEEK)
+                val dow = calendarAt(dayStart).get(Calendar.DAY_OF_WEEK)
                 dow != Calendar.SUNDAY && dow != Calendar.SATURDAY
             }
             Note.REPEAT_WEEKLY -> daysBetween(note.dueDate, dayStart) % 7 == 0L
             Note.REPEAT_BIWEEKLY -> daysBetween(note.dueDate, dayStart) % 14 == 0L
-            Note.REPEAT_MONTHLY -> due.get(Calendar.DAY_OF_MONTH) == target.get(Calendar.DAY_OF_MONTH)
-            Note.REPEAT_YEARLY ->
+            Note.REPEAT_MONTHLY ->
+                calendarAt(note.dueDate).get(Calendar.DAY_OF_MONTH) == calendarAt(dayStart).get(Calendar.DAY_OF_MONTH)
+            Note.REPEAT_YEARLY -> {
+                val due = calendarAt(note.dueDate)
+                val target = calendarAt(dayStart)
                 due.get(Calendar.DAY_OF_MONTH) == target.get(Calendar.DAY_OF_MONTH) &&
                     due.get(Calendar.MONTH) == target.get(Calendar.MONTH)
-            Note.REPEAT_MONTHLY_NTH_WEEKDAY ->
+            }
+            Note.REPEAT_MONTHLY_NTH_WEEKDAY -> {
+                val due = calendarAt(note.dueDate)
+                val target = calendarAt(dayStart)
                 target.get(Calendar.DAY_OF_WEEK) == due.get(Calendar.DAY_OF_WEEK) &&
                     weekOfMonth(target) == weekOfMonth(due)
-            Note.REPEAT_FIRST_BUSINESS_DAY_OF_MONTH -> isFirstBusinessDayOfMonth(target)
+            }
+            Note.REPEAT_FIRST_BUSINESS_DAY_OF_MONTH -> isFirstBusinessDayOfMonth(calendarAt(dayStart))
             else -> dayStart == note.dueDate
         }
     }
+
+    private fun calendarAt(millis: Long): Calendar = Calendar.getInstance().apply { timeInMillis = millis }
 
     /** Which occurrence of its weekday a day is within its month -- the 14th is always the
      *  2nd occurrence of whatever weekday it falls on, the 21st the 3rd, etc. Used by
@@ -67,11 +76,14 @@ object RecurrenceUtils {
      *  already passed). Used by [com.example.notepad.notification.NoteReminderScheduler] to know
      *  when to fire a recurring note's next exact-time alarm. */
     fun nextOccurrenceOnOrAfter(note: Note, fromDayStart: Long, maxDaysAhead: Int = 370): Long? {
-        val oneDayMillis = 24 * 60 * 60 * 1000L
-        var day = fromDayStart
+        // Stepped through a Calendar, not `day += 24h` -- see [DayMath]: a fixed-millis step
+        // drifts off midnight after a DST transition, and occursOn/completion tracking compare
+        // against exact start-of-day values.
+        val cursor = calendarAt(fromDayStart)
         repeat(maxDaysAhead) {
+            val day = cursor.timeInMillis
             if (occursOn(note, day)) return day
-            day += oneDayMillis
+            cursor.add(Calendar.DAY_OF_MONTH, 1)
         }
         return null
     }

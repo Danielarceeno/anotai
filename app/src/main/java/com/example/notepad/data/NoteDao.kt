@@ -45,9 +45,6 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE activeState = ${Note.TRASHED}")
     suspend fun getTrashedForCleanup(): List<Note>
 
-    @Query("SELECT * FROM notes WHERE activeState = ${Note.ACTIVE} AND folderId = :folderId ORDER BY modifiedDate DESC")
-    fun observeByFolder(folderId: Long): LiveData<List<Note>>
-
     /** Backs "select all" in [NoteRepository.getAllIds]: every active note's id, regardless of
      *  which page a [androidx.paging.PagingSource] has actually loaded into the adapter. */
     @Query("SELECT id FROM notes WHERE activeState = ${Note.ACTIVE}")

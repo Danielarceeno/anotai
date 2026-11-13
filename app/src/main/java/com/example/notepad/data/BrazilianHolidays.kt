@@ -20,21 +20,30 @@ object BrazilianHolidays {
 
     /** Memoized per year: the calendar grid's 42 cells would otherwise redo [easterSunday]'s
      *  arithmetic (and rebuild this map) up to 42 times for the exact same year. */
-    @Volatile private var cachedYear: Int = -1
-    @Volatile private var cachedHolidays: Map<Long, String> = emptyMap()
+    /** Held as one object behind a single volatile field, so a reader can never see one year's
+     *  number paired with another year's map. Keyed by time zone as well as year: the map's keys
+     *  are start-of-day millis *in the default zone*, so after the device changes zone a map
+     *  built under the old one no longer matches any day the calendar asks about. */
+    private class Cached(val year: Int, val zoneId: String, val holidays: Map<Long, String>)
+
+    @Volatile private var cached: Cached? = null
 
     private fun holidaysForYear(year: Int): Map<Long, String> {
-        cachedHolidays.takeIf { cachedYear == year }?.let { return it }
+        val zoneId = java.util.TimeZone.getDefault().id
+        cached?.takeIf { it.year == year && it.zoneId == zoneId }?.let { return it.holidays }
         val easter = easterSunday(year)
-        val oneDayMillis = 24 * 60 * 60 * 1000L
+        // Easter-relative days go through DayMath.addDays, not `easter - 47 * 24h`: a DST
+        // transition between the two dates (routine outside Brazil -- Carnaval and Easter
+        // straddle the European/North American spring change) would leave the result an hour off
+        // midnight, so it would never match the start-of-day value the calendar looks up.
         val holidays = mapOf(
             dateMillis(year, Calendar.JANUARY, 1) to "Ano Novo",
-            (easter - 47 * oneDayMillis) to "Carnaval",
-            (easter - 2 * oneDayMillis) to "Sexta-feira Santa",
+            DayMath.addDays(easter, -47) to "Carnaval",
+            DayMath.addDays(easter, -2) to "Sexta-feira Santa",
             easter to "Páscoa",
             dateMillis(year, Calendar.APRIL, 21) to "Tiradentes",
             dateMillis(year, Calendar.MAY, 1) to "Dia do Trabalho",
-            (easter + 60 * oneDayMillis) to "Corpus Christi",
+            DayMath.addDays(easter, 60) to "Corpus Christi",
             dateMillis(year, Calendar.SEPTEMBER, 7) to "Independência do Brasil",
             dateMillis(year, Calendar.OCTOBER, 12) to "Nossa Senhora Aparecida",
             dateMillis(year, Calendar.NOVEMBER, 2) to "Finados",
@@ -43,8 +52,7 @@ object BrazilianHolidays {
             dateMillis(year, Calendar.NOVEMBER, 20) to "Consciência Negra",
             dateMillis(year, Calendar.DECEMBER, 25) to "Natal"
         )
-        cachedYear = year
-        cachedHolidays = holidays
+        cached = Cached(year, zoneId, holidays)
         return holidays
     }
 

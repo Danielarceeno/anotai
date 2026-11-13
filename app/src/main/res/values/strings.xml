@@ -113,6 +113,7 @@
     <string name="widget_description_2x2_list">A fixed 2x2 tile with today\'s notes as a small scrollable list</string>
     <string name="widget_description_2x2_summary">A fixed 2x2 tile showing how many notes are due today and done, at a glance</string>
     <string name="widget_summary_progress">%1$d of %2$d done today</string>
+    <string name="checklist_progress">%1$d/%2$d done</string>
     <string name="widget_label_adaptive">Anotaí (resizable)</string>
     <string name="widget_label_1x1">Anotaí (1x1)</string>
     <string name="widget_label_2x2_list">Anotaí: today\'s list (2x2)</string>
@@ -169,7 +170,6 @@
     <string name="backup_frequency_hours">Every %1$d hours</string>
     <string name="backup_frequency_daily">Once a day</string>
     <string name="drive_signed_in_as">Signed in as %1$s</string>
-    <string name="drive_backup_now">Back up now</string>
     <string name="drive_restore">Restore backup</string>
     <string name="drive_sign_out">Sign out</string>
     <string name="drive_backup_success">Backed up to Google Drive</string>

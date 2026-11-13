@@ -41,11 +41,16 @@ class TrashAdapter(
     class ViewHolder(private val binding: ItemTrashNoteBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(note: Note, onRestore: (Note) -> Unit, onDeleteForever: (Note) -> Unit) {
             binding.titleView.text = note.title.ifBlank { "(" + binding.root.context.getString(com.example.notepad.R.string.title_hint) + ")" }
-            binding.bodyView.text = if (note.type == Note.TYPE_CHECKLIST) {
-                val (done, total) = ChecklistItem.countDone(note.body)
-                "$done/$total done"
-            } else {
-                NoteFormatting.plainText(note.body, note.isFormatted)
+            val context = binding.root.context
+            binding.bodyView.text = when {
+                // Same placeholder every other list shows: moving a password-protected note to
+                // the trash must not be a way to read its body without the password.
+                note.passwordHash.isNotEmpty() -> context.getString(com.example.notepad.R.string.note_locked_preview)
+                note.type == Note.TYPE_CHECKLIST -> {
+                    val (done, total) = ChecklistItem.countDone(note.body)
+                    context.getString(com.example.notepad.R.string.checklist_progress, done, total)
+                }
+                else -> NoteFormatting.plainText(note.body, note.isFormatted)
             }
             binding.restoreButton.setOnClickListener { onRestore(note) }
             binding.deleteForeverButton.setOnClickListener { onDeleteForever(note) }

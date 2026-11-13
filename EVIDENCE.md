@@ -43,5 +43,6 @@ Ver `app/src/main/java/com/example/notepad/`:
 - `AndroidManifest.xml` — replica a mesma integração: `SearchActivity` como searchable do sistema
   (`android.intent.action.SEARCH`) e uma ação interna própria (`com.example.notepad.action.SEARCH`).
 
-Este projeto não foi compilado neste ambiente (não há Android SDK/emulador aqui). Abra a pasta no
-Android Studio para sincronizar o Gradle e rodar.
+Desde então a busca passou a rodar sobre um índice FTS5 com tokenizador trigram (`notes_fts`, ver
+`AppDatabase`), que o SQLite usa para acelerar o mesmo `LIKE '%termo%'` — o comportamento de
+correspondência descrito acima não mudou, só deixou de ser uma varredura linear da tabela.

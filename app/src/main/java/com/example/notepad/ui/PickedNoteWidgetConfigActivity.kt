@@ -61,6 +61,11 @@ class PickedNoteWidgetConfigActivity : LockGuardedActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        redirectToLockScreenIfLocked()
+    }
+
     private fun pickNote(noteId: Long) {
         PickedNoteWidgetPrefs.setNoteId(this, appWidgetId, noteId)
         val manager = AppWidgetManager.getInstance(this)

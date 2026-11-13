@@ -9,7 +9,9 @@ import org.json.JSONObject
  *  (see [com.example.notepad.data.drive.DriveBackupHelper]) -- no sync server involved either way. */
 object BackupHelper {
 
-    fun toJson(notes: List<Note>): String {
+    fun toJson(notes: List<Note>): String = toJsonArray(notes).toString(2)
+
+    private fun toJsonArray(notes: List<Note>): JSONArray {
         val array = JSONArray()
         notes.forEach { note ->
             array.put(
@@ -37,7 +39,7 @@ object BackupHelper {
                 }
             )
         }
-        return array.toString(2)
+        return array
     }
 
     /** Returns null if [text] isn't JSON this function could have produced. */
@@ -90,7 +92,7 @@ object BackupHelper {
             tombstoneArray.put(JSONObject().apply { put("uuid", uuid); put("deletedAt", deletedAt) })
         }
         return JSONObject().apply {
-            put("notes", JSONArray(toJson(notes)))
+            put("notes", toJsonArray(notes))
             put("tombstones", tombstoneArray)
         }.toString(2)
     }
